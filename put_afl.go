@@ -19,12 +19,6 @@ import (
 	"unsafe"
 )
 
-// To be able to observe the progress and results of fuzzers correctly, need to
-// be able to run the inputs they find. Here, I adopt the common "grey-box"
-// view: Inputs are of two kinds, seeds and crashes. In the file, inputs are run
-// mainly in order to get the "trace" of the input (hit count of each branch it
-// triggers). ATM implemented using AFL instrumentation.
-
 // *****************************************************************************
 // ******************************* Run Inputs **********************************
 
