@@ -19,6 +19,11 @@ func main() {
 	fmt.Println("Hemipt start.")
 	config := parseCLI()
 
+	seedInputs := readSeeds(config.inDir)
+	if len(seedInputs) == 0 {
+		log.Fatal("No seed given")
+	}
+	//
 	putArgs := strings.Split(config.cliStr, " ")
 	ok, put := startAFLPUT(putArgs[0], putArgs[1:], 100*time.Millisecond)
 	if !ok {
@@ -27,6 +32,11 @@ func main() {
 	}
 
 	// ** Test **
+	for i, in := range seedInputs {
+		_, trace, _ := put.run(in)
+		hash := hashTrBits(trace)
+		fmt.Printf("seed %d hash: 0x%x\n", i, hash)
+	}
 
 	put.clean()
 }
@@ -55,4 +65,26 @@ func parseCLI() (config configOptions) {
 	}
 
 	return config
+}
+
+func readSeeds(dir string) (seedInputs [][]byte) {
+	infos, err := ioutil.ReadDir(dir)
+	if err != nil {
+		log.Printf("Couldn't read seed directory: %v.\n", err)
+		return seedInputs
+	} else if len(infos) == 0 {
+		log.Print("No seed in seed directory.")
+		return seedInputs
+	}
+
+	for _, info := range infos {
+		in, err := ioutil.ReadFile(filepath.Join(dir, info.Name()))
+		if err != nil {
+			log.Printf("Couldn't read seed %s: %v.\n", info.Name(), err)
+			continue
+		}
+		seedInputs = append(seedInputs, in)
+	}
+
+	return seedInputs
 }
