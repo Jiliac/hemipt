@@ -357,7 +357,7 @@ func (fio fileIO) Write(tc []byte) (n int, err error) {
 	err = f.Close()
 	return n, err
 }
-func (fio fileIO) clean() {}
+func (fio fileIO) clean() { os.Remove(fio.path) }
 
 func makeFilePUTWriter(args []string, fileArg int, filePathPos [2]int) (
 	ok bool, pw putWriter, files []uintptr) {

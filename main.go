@@ -6,10 +6,16 @@ import (
 
 	"flag"
 	"io/ioutil"
+	"math/rand"
 	"path/filepath"
 	"strings"
 	"time"
 )
+
+func init() {
+	randSeed := time.Now().UTC().UnixNano()
+	rand.Seed(randSeed)
+}
 
 var (
 	workDir = "/tmp" // @TODO: make it a user option
@@ -23,22 +29,35 @@ func main() {
 	if len(seedInputs) == 0 {
 		log.Fatal("No seed given")
 	}
-	//
-	putArgs := strings.Split(config.cliStr, " ")
-	put, ok := startAFLPUT(putArgs[0], putArgs[1:], 100*time.Millisecond)
-	if !ok {
-		log.Printf("Couldn't start %s.\n", filepath.Base(putArgs[0]))
-		return
-	}
 
 	// ** Test **
-	for i, in := range seedInputs {
-		_, _ = put.run(in)
-		hash := hashTrBits(put.trace)
-		fmt.Printf("seed %d hash: 0x%x\n", i, hash)
+	putArgs := strings.Split(config.cliStr, " ")
+	binPath, cliArgs := putArgs[0], putArgs[1:]
+	t1, ok1 := startThread(binPath, cliArgs)
+	t2, ok2 := startThread(binPath, cliArgs)
+	if !ok1 || !ok2 {
+		log.Print("Problem starting thread.")
+		return
+	}
+	threads := []*thread{t1, t2}
+	//
+	for i, in := range append(seedInputs, seedInputs...) {
+		e := executor{
+			ig:             seedCopier(in),
+			discoveryFit:   trueFitFunc{},
+			securityPolicy: falseFitFunc{},
+			fitChan:        devNullFitChan,
+			crashChan:      devNullFitChan,
+		}
+
+		t := threads[i%2]
+		t.execChan <- &e
+		<-t.endChan
 	}
 
-	put.clean()
+	for _, t := range threads {
+		t.clean()
+	}
 }
 
 type configOptions struct {

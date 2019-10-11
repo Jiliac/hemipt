@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"sync"
 	"time"
 )
@@ -47,7 +49,7 @@ func startThread(binPath string, cliArgs []string) (t *thread, ok bool) {
 func (t *thread) clean() { t.put.clean() }
 
 // *****************************************************************************
-// *****************************************************************************
+// ******************************** Executor ***********************************
 // On a thread. Execute the "big function" (meaning costly in time).
 
 type executor struct {
@@ -75,5 +77,8 @@ func (e executor) execute(put *aflPutT) {
 		if isCrash {
 			e.crashChan <- runInfo
 		}
+
+		hash := hashTrBits(runInfo.trace)
+		fmt.Printf("hash: 0x%x\n", hash)
 	}
 }
