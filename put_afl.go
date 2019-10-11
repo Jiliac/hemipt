@@ -11,12 +11,15 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 )
 
 // *****************************************************************************
@@ -614,4 +617,109 @@ func listChildren(pid int) (childrenPids []int) {
 	}
 
 	return childrenPids
+}
+
+// *****************************************************************************
+// *************************** CPU Affinity Managing ***************************
+
+const deactivateHyperthread = true
+
+var getCPUMtx sync.Mutex
+
+func lockRoutine() bool {
+	getCPUMtx.Lock()
+	defer getCPUMtx.Unlock()
+	unusedCPUs := getUnusedCPUs()
+
+	runtime.LockOSThread()
+
+	targetedCPU := -1
+	if len(unusedCPUs) > 0 {
+		for cpu, ok := range unusedCPUs {
+			if !ok {
+				continue
+			}
+			targetedCPU = cpu
+			break
+		}
+
+	} else { // No CPU available.
+		log.Print("No CPU available.")
+		return false
+	}
+
+	var set unix.CPUSet
+	set.Zero()
+	set.Set(targetedCPU)
+
+	err := unix.SchedSetaffinity(0, &set)
+	if err != nil {
+		log.Printf("Could not associate PUT with a CPU: %v.\n", err)
+	}
+	return true
+}
+
+func getUnusedCPUs() (unusedCPUs []bool) {
+	nbCPU := runtime.NumCPU()
+	//
+	unusedCPUs = make([]bool, nbCPU)
+	for cpu := range unusedCPUs {
+		unusedCPUs[cpu] = true
+	}
+	if deactivateHyperthread {
+		for cpu := range unusedCPUs {
+			if cpu%2 == 1 {
+				unusedCPUs[cpu] = false
+			}
+		}
+	}
+
+	procDir, err := ioutil.ReadDir("/proc")
+	if err != nil {
+		log.Printf("Could not read /proc: %v.\n", err)
+		return
+	}
+
+	for _, procFileInfo := range procDir {
+		if !procFileInfo.IsDir() { // Only care about dirs
+			continue
+		}
+		name := procFileInfo.Name()
+		if name[0] < '0' || name[0] > '9' { // Only care about pids
+			continue
+		}
+
+		pid, err := strconv.Atoi(name)
+		if err != nil {
+			continue
+		}
+
+		var set unix.CPUSet
+		set.Zero()
+		err = unix.SchedGetaffinity(pid, &set)
+		if err != nil {
+			continue
+		}
+
+		count := set.Count()
+		if count == nbCPU {
+			continue
+		}
+		status, err := ioutil.ReadFile(fmt.Sprintf("/proc/%d/status", pid))
+		if err != nil {
+			log.Printf("Cannot read %s status: %v.\n", name, err)
+			continue
+		}
+		if !strings.Contains(string(status), "VmSize") { // Prob' kernel task
+			continue
+		}
+
+		for cpu := range unusedCPUs {
+			if set.IsSet(cpu) {
+				unusedCPUs[cpu] = unusedCPUs[cpu] && false
+			}
+		}
+	}
+
+	return unusedCPUs
 }
