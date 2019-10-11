@@ -33,8 +33,8 @@ func main() {
 
 	// ** Test **
 	for i, in := range seedInputs {
-		_, trace, _ := put.run(in)
-		hash := hashTrBits(trace)
+		_, _ = put.run(in)
+		hash := hashTrBits(put.trace)
 		fmt.Printf("seed %d hash: 0x%x\n", i, hash)
 	}
 

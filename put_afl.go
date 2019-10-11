@@ -32,20 +32,22 @@ type runMeta struct {
 	status  syscall.WaitStatus
 	crashed bool
 	hanged  bool
+
+	trace []byte // Only used if is fit.
 }
 
 func (put *aflPutT) run(testCase []byte) (
-	runInfo runMeta, traceBits []byte, err error) {
+	runInfo runMeta, err error) {
 
 	put.mtx.Lock()
-	zeroShm(put.traceBits)
+	zeroShm(put.trace)
 
 	if len(testCase) > 0 {
 		_, err = put.writer.Write(testCase)
 		if err != nil {
 			log.Printf("Could not write testCase: %v\n", err)
 			put.mtx.Unlock()
-			return runInfo, traceBits, err
+			return runInfo, err
 		}
 	} else {
 		fmt.Println("Empty testCase.")
@@ -56,14 +58,14 @@ func (put *aflPutT) run(testCase []byte) (
 	if err != nil {
 		log.Printf("Problem when writing in control pipe: %v\n", err)
 		put.mtx.Unlock()
-		return runInfo, traceBits, err
+		return runInfo, err
 	}
 	encodedWorkpid := make([]byte, 4)
 	_, err = put.stPipeR.Read(encodedWorkpid)
 	if err != nil {
 		log.Printf("Problem when reading the status pipe: %v\n", err)
 		put.mtx.Unlock()
-		return runInfo, traceBits, err
+		return runInfo, err
 	}
 	pid := int(binary.LittleEndian.Uint32(encodedWorkpid))
 
@@ -107,11 +109,8 @@ func (put *aflPutT) run(testCase []byte) (
 		runInfo.crashed = true
 	}
 
-	traceBits = make([]byte, len(put.traceBits))
-	copy(traceBits, put.traceBits)
-
 	put.mtx.Unlock()
-	return runInfo, traceBits, err
+	return runInfo, err
 }
 
 // *****************************************************************************
@@ -148,8 +147,8 @@ const (
 )
 
 type aflPutT struct {
-	mtx       sync.Mutex
-	traceBits []byte
+	mtx   sync.Mutex
+	trace []byte
 
 	// Used at each run
 	writer  putWriter
@@ -194,7 +193,7 @@ func startAFLPUT(binPath string, cliArgs []string, timeout time.Duration) (
 	if !okShm {
 		return
 	}
-	put.traceBits, put.shmID = trace, shmID
+	put.trace, put.shmID = trace, shmID
 	env := os.Environ()
 	var extraEnv []string
 	extraEnv, put.usesMsan = getExtraEnvs(binPath, shmID)
