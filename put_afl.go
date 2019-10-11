@@ -39,17 +39,13 @@ type runMeta struct {
 	trace []byte // Only used if is fit.
 }
 
-func (put *aflPutT) run(testCase []byte) (
-	runInfo runMeta, err error) {
-
-	put.mtx.Lock()
+func (put *aflPutT) run(testCase []byte) (runInfo runMeta, err error) {
 	zeroShm(put.trace)
 
 	if len(testCase) > 0 {
 		_, err = put.writer.Write(testCase)
 		if err != nil {
 			log.Printf("Could not write testCase: %v\n", err)
-			put.mtx.Unlock()
 			return runInfo, err
 		}
 	} else {
@@ -60,14 +56,12 @@ func (put *aflPutT) run(testCase []byte) (
 	_, err = put.ctlPipeW.Write(helloChildS)
 	if err != nil {
 		log.Printf("Problem when writing in control pipe: %v\n", err)
-		put.mtx.Unlock()
 		return runInfo, err
 	}
 	encodedWorkpid := make([]byte, 4)
 	_, err = put.stPipeR.Read(encodedWorkpid)
 	if err != nil {
 		log.Printf("Problem when reading the status pipe: %v\n", err)
-		put.mtx.Unlock()
 		return runInfo, err
 	}
 	pid := int(binary.LittleEndian.Uint32(encodedWorkpid))
@@ -112,7 +106,6 @@ func (put *aflPutT) run(testCase []byte) (
 		runInfo.crashed = true
 	}
 
-	put.mtx.Unlock()
 	return runInfo, err
 }
 
@@ -150,7 +143,6 @@ const (
 )
 
 type aflPutT struct {
-	mtx   sync.Mutex
 	trace []byte
 
 	// Used at each run
@@ -170,7 +162,7 @@ type putWriter interface {
 }
 
 func startAFLPUT(binPath string, cliArgs []string, timeout time.Duration) (
-	ok bool, put *aflPutT) {
+	put *aflPutT, ok bool) {
 
 	if _, err := os.Stat(binPath); os.IsNotExist(err) {
 		return
@@ -216,7 +208,7 @@ func startAFLPUT(binPath string, cliArgs []string, timeout time.Duration) (
 	put.timeout = timeout
 	ok = true
 
-	return ok, put
+	return put, ok
 }
 
 func getExtraEnvs(binPath string, shmID uintptr) (envs []string, usesMsan bool) {
@@ -626,7 +618,7 @@ const deactivateHyperthread = true
 
 var getCPUMtx sync.Mutex
 
-func lockRoutine() bool {
+func lockRoutine() (bool, int) {
 	getCPUMtx.Lock()
 	defer getCPUMtx.Unlock()
 	unusedCPUs := getUnusedCPUs()
@@ -645,7 +637,7 @@ func lockRoutine() bool {
 
 	} else { // No CPU available.
 		log.Print("No CPU available.")
-		return false
+		return false, -1
 	}
 
 	var set unix.CPUSet
@@ -656,7 +648,7 @@ func lockRoutine() bool {
 	if err != nil {
 		log.Printf("Could not associate PUT with a CPU: %v.\n", err)
 	}
-	return true
+	return true, targetedCPU
 }
 
 func getUnusedCPUs() (unusedCPUs []bool) {

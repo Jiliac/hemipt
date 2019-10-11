@@ -25,7 +25,7 @@ func main() {
 	}
 	//
 	putArgs := strings.Split(config.cliStr, " ")
-	ok, put := startAFLPUT(putArgs[0], putArgs[1:], 100*time.Millisecond)
+	put, ok := startAFLPUT(putArgs[0], putArgs[1:], 100*time.Millisecond)
 	if !ok {
 		log.Printf("Couldn't start %s.\n", filepath.Base(putArgs[0]))
 		return
