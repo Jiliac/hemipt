@@ -30,17 +30,29 @@ func main() {
 		log.Fatal("No seed given")
 	}
 
-	// ** Test **
 	putArgs := strings.Split(config.cliStr, " ")
 	binPath, cliArgs := putArgs[0], putArgs[1:]
-	t1, ok1 := startThread(binPath, cliArgs)
-	t2, ok2 := startThread(binPath, cliArgs)
-	if !ok1 || !ok2 {
+	threads, ok := startMultiThreads(config.threadN, binPath, cliArgs)
+	if !ok {
 		log.Print("Problem starting thread.")
 		return
 	}
-	threads := []*thread{t1, t2}
-	//
+
+	// ** Test **
+	seedExecTest(threads, seedInputs)
+
+	for _, t := range threads {
+		t.clean()
+	}
+
+	time.Sleep(3 * time.Second)
+}
+func seedExecTest(threads []*thread, seedInputs [][]byte) {
+	if len(threads) < 2 {
+		fmt.Println("Not enough threads for seedExecTest to run.")
+		return
+	}
+
 	for i, in := range append(seedInputs, seedInputs...) {
 		e := executor{
 			ig:             seedCopier(in),
@@ -54,21 +66,24 @@ func main() {
 		t.execChan <- &e
 		<-t.endChan
 	}
-
-	for _, t := range threads {
-		t.clean()
-	}
 }
 
+//
+
 type configOptions struct {
-	cliStr        string
+	// PUT interface
+	cliStr string
+
+	// Fuzzer configuration
 	inDir, outDir string
+	threadN       int
 }
 
 func parseCLI() (config configOptions) {
 	flag.StringVar(&config.cliStr, "cli", "", "PUT command-line interface")
 	flag.StringVar(&config.inDir, "i", "", "Seed directory")
 	flag.StringVar(&config.outDir, "o", "", "Output directory")
+	flag.IntVar(&config.threadN, "n", 2, "Number of threads Hemipt uses")
 
 	flag.Parse()
 

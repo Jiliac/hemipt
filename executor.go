@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"log"
 
+	"runtime"
 	"sync"
 	"time"
 )
@@ -47,6 +49,26 @@ func startThread(binPath string, cliArgs []string) (t *thread, ok bool) {
 }
 
 func (t *thread) clean() { t.put.clean() }
+
+func startMultiThreads(n int, binPath string, cliArgs []string) (
+	threads []*thread, ok bool) {
+
+	nbCPU := runtime.NumCPU()
+	if n > nbCPU {
+		log.Fatalf("There are only %d CPUs but you ask for %d threads.\n",
+			nbCPU, n)
+	}
+
+	for i := 0; i < n; i++ {
+		t, ok := startThread(binPath, cliArgs)
+		if !ok {
+			return threads, ok
+		}
+		threads = append(threads, t)
+	}
+	ok = true
+	return threads, ok
+}
 
 // *****************************************************************************
 // ******************************** Executor ***********************************
