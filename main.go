@@ -46,9 +46,8 @@ func main() {
 	for _, t := range threads {
 		t.clean()
 	}
-
-	time.Sleep(3 * time.Second)
 }
+
 func seedExecTest(threads []*thread, seedInputs [][]byte) {
 	if len(threads) < 2 {
 		fmt.Println("Not enough threads for seedExecTest to run.")
@@ -70,7 +69,8 @@ func seedExecTest(threads []*thread, seedInputs [][]byte) {
 	}
 }
 
-//
+// *****************************************************************************
+// ************************* Command-Line Interface ****************************
 
 type configOptions struct {
 	// PUT interface
