@@ -37,6 +37,7 @@ type runMeta struct {
 	hanged  bool
 
 	trace []byte // Only used if is fit.
+	hash  uint64
 }
 
 func (put *aflPutT) run(testCase []byte) (runInfo runMeta, err error) {
@@ -106,6 +107,7 @@ func (put *aflPutT) run(testCase []byte) (runInfo runMeta, err error) {
 		runInfo.crashed = true
 	}
 
+	runInfo.hash = hashTrBits(put.trace)
 	return runInfo, err
 }
 

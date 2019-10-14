@@ -59,7 +59,7 @@ func (fitFunc *brCovFitFunc) isFit(runInfo runMeta) (fit bool) {
 }
 
 func (fitFunc *brCovFitFunc) String() string {
-	return fmt.Sprintf("%.3v branch and %.3v hashes",
+	return fmt.Sprintf("%.3v branch and,\t%.3v hashes",
 		float64(len(fitFunc.brMap)),
 		float64(len(fitFunc.hashMap)),
 	)

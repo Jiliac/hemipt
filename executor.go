@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"runtime"
@@ -87,6 +86,7 @@ func (e executor) execute(put *aflPutT) {
 
 	runInfo, _ := put.run(testCase)
 
+	runInfo.trace = put.trace
 	dF := e.discoveryFit.isFit(runInfo)
 	isCrash := e.securityPolicy.isFit(runInfo)
 	//
@@ -99,8 +99,5 @@ func (e executor) execute(put *aflPutT) {
 		if isCrash {
 			e.crashChan <- runInfo
 		}
-
-		hash := hashTrBits(runInfo.trace)
-		fmt.Printf("hash: 0x%x\n", hash)
 	}
 }

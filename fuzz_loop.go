@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"sync"
-	"time"
 )
 
 func fuzzLoop(threads []*thread, seedInputs [][]byte) {
@@ -18,14 +17,15 @@ func fuzzLoop(threads []*thread, seedInputs [][]byte) {
 		return
 	}
 
+	fitChan := makeGlbFitness()
+
 	var wg sync.WaitGroup
 	for i, seedI := range seedInputs {
-
 		e := &executor{
-			ig:             seedCopier(seedI),
-			discoveryFit:   trueFitFunc{},
+			ig:             makeRatioMutator(seedI, 1.0/100),
+			discoveryFit:   newBrCovFitFunc(),
 			securityPolicy: falseFitFunc{},
-			fitChan:        devNullFitChan,
+			fitChan:        fitChan,
 			crashChan:      devNullFitChan,
 		}
 
@@ -43,12 +43,13 @@ func fuzzLoop(threads []*thread, seedInputs [][]byte) {
 				default:
 					t.execChan <- e
 					<-t.endChan
-					time.Sleep(500 * time.Millisecond)
 				}
 			}
 
 			intChans.del(key)
 			wg.Done()
+
+			fmt.Printf("Local fitness: %v.\n", e.discoveryFit)
 		}(threads[i], e)
 	}
 
