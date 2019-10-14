@@ -39,7 +39,9 @@ func main() {
 	}
 
 	// ** Test **
-	seedExecTest(threads, seedInputs)
+	//seedExecTest(threads, seedInputs)
+
+	fuzzLoop(threads, seedInputs)
 
 	for _, t := range threads {
 		t.clean()
