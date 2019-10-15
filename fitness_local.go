@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+
+	"time"
 )
 
 // The fitness function interfaces are intended to do the "heavy analysis" of a
@@ -11,6 +13,34 @@ import (
 type fitnessFunc interface {
 	isFit(runInfo runMeta) bool
 	String() string
+}
+
+// *****************************************************************************
+// ************************** Fitness Multiplexer ******************************
+
+type fitnessMultiplexer []fitnessFunc
+
+func (fm fitnessMultiplexer) isFit(runInfo runMeta) (fit bool) {
+	fits := make([]bool, len(fm))
+	for i, ff := range fm {
+		fits[i] = ff.isFit(runInfo)
+	}
+	//
+	for _, fitI := range fits {
+		fit = fit || fitI
+	}
+	return fit
+}
+func (fm fitnessMultiplexer) String() (str string) {
+	str = "[ "
+	for i, ff := range fm {
+		str += ff.String()
+		if i != len(fm)-1 {
+			str += ", "
+		}
+	}
+	str += " ]"
+	return str
 }
 
 // *****************************************************************************
@@ -64,3 +94,61 @@ func (fitFunc *brCovFitFunc) String() string {
 		float64(len(fitFunc.hashMap)),
 	)
 }
+
+// *****************************************************************************
+// ****************************** PCA Fitness **********************************
+// ATM (October 2019), this is going to be very experimentative. Just care about
+// my current case where only several seeds are constantly fuzzed (kind of a
+// blackbox mode). If/when expanded to future usage, may need significant
+// modification or even just rewriting all.
+
+const (
+	pcaInitTime  = time.Minute
+	initQueueMax = 50
+)
+
+type pcaFitFunc struct {
+	// Init
+	initializing bool
+	initTimer    *time.Timer
+	queue        [][]byte
+}
+
+func newPCAFitFunc() *pcaFitFunc {
+	pff := &pcaFitFunc{
+		initializing: true,
+		initTimer:    time.NewTimer(pcaInitTime),
+	}
+	return pff
+}
+
+func (pff *pcaFitFunc) isFit(runInfo runMeta) (fit bool) {
+	select {
+	case _ = <-pff.initTimer.C:
+		pff.endInit()
+	default:
+		if len(pff.queue) > initQueueMax {
+			pff.initTimer.Stop()
+			pff.endInit()
+		}
+	}
+
+	if pff.initializing {
+		pff.queue = append(pff.queue, runInfo.trace)
+		return fit
+	}
+
+	//@TODO... DynPCA
+
+	return fit
+}
+
+func (pff *pcaFitFunc) endInit() {
+	pff.initializing = false
+	// @TODO... PCA
+	fmt.Println("END PCA INIT.")
+
+	pff.queue = nil
+}
+
+func (pff *pcaFitFunc) String() string { return "PCA Fitness Function" }

@@ -21,9 +21,10 @@ func fuzzLoop(threads []*thread, seedInputs [][]byte) {
 
 	var wg sync.WaitGroup
 	for i, seedI := range seedInputs {
+		discoveryFit := fitnessMultiplexer{newBrCovFitFunc(), newPCAFitFunc()}
 		e := &executor{
 			ig:             makeRatioMutator(seedI, 1.0/100),
-			discoveryFit:   newBrCovFitFunc(),
+			discoveryFit:   discoveryFit,
 			securityPolicy: falseFitFunc{},
 			fitChan:        fitChan,
 			crashChan:      devNullFitChan,
