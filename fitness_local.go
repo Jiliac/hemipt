@@ -58,20 +58,20 @@ func (trueFitFunc) String() string      { return "always true" }
 // **************************** Branch Coverage ********************************
 
 type brCovFitFunc struct {
-	brMap   map[int]struct{}
-	hashMap map[uint64]struct{}
-	brList  []int
+	brMap  map[int]struct{}
+	hashes map[uint64]struct{}
+	brList []int
 }
 
 func newBrCovFitFunc() *brCovFitFunc {
 	return &brCovFitFunc{
-		brMap:   make(map[int]struct{}),
-		hashMap: make(map[uint64]struct{}),
+		brMap:  make(map[int]struct{}),
+		hashes: make(map[uint64]struct{}),
 	}
 }
 
 func (fitFunc *brCovFitFunc) isFit(runInfo runMeta) (fit bool) {
-	fitFunc.hashMap[runInfo.hash] = struct{}{}
+	fitFunc.hashes[runInfo.hash] = struct{}{}
 
 	trace := runInfo.trace
 	for i, tr := range trace {
@@ -91,7 +91,7 @@ func (fitFunc *brCovFitFunc) isFit(runInfo runMeta) (fit bool) {
 func (fitFunc *brCovFitFunc) String() string {
 	return fmt.Sprintf("%.3v branch and,\t%.3v hashes",
 		float64(len(fitFunc.brMap)),
-		float64(len(fitFunc.hashMap)),
+		float64(len(fitFunc.hashes)),
 	)
 }
 
@@ -112,12 +112,15 @@ type pcaFitFunc struct {
 	initializing bool
 	initTimer    *time.Timer
 	queue        [][]byte
+
+	hashes map[uint64]struct{}
 }
 
 func newPCAFitFunc() *pcaFitFunc {
 	pff := &pcaFitFunc{
 		initializing: true,
 		initTimer:    time.NewTimer(pcaInitTime),
+		hashes:       make(map[uint64]struct{}),
 	}
 	return pff
 }
@@ -132,6 +135,11 @@ func (pff *pcaFitFunc) isFit(runInfo runMeta) (fit bool) {
 			pff.endInit()
 		}
 	}
+
+	if _, ok := pff.hashes[runInfo.hash]; ok {
+		return fit
+	}
+	pff.hashes[runInfo.hash] = struct{}{}
 
 	if pff.initializing {
 		pff.queue = append(pff.queue, runInfo.trace)
