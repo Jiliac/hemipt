@@ -104,7 +104,7 @@ func (fitFunc *brCovFitFunc) String() string {
 
 const (
 	pcaInitTime  = time.Minute
-	initQueueMax = 50
+	initQueueMax = 100
 )
 
 type pcaFitFunc struct {
@@ -114,6 +114,8 @@ type pcaFitFunc struct {
 	queue        [][]byte
 
 	hashes map[uint64]struct{}
+
+	dynpca *dynamicPCA
 }
 
 func newPCAFitFunc() *pcaFitFunc {
@@ -136,6 +138,7 @@ func (pff *pcaFitFunc) isFit(runInfo runMeta) (fit bool) {
 		}
 	}
 
+	// Really sure about this? It can be a strong bias.
 	if _, ok := pff.hashes[runInfo.hash]; ok {
 		return fit
 	}
@@ -152,10 +155,11 @@ func (pff *pcaFitFunc) isFit(runInfo runMeta) (fit bool) {
 }
 
 func (pff *pcaFitFunc) endInit() {
-	pff.initializing = false
-	// @TODO... PCA
-	fmt.Println("END PCA INIT.")
-
+	var ok bool
+	ok, pff.dynpca = newDynPCA(pff.queue)
+	if ok {
+		pff.initializing = false
+	}
 	pff.queue = nil
 }
 

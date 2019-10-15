@@ -1,10 +1,13 @@
 package main
 
 import (
+	"math"
 	"reflect"
 	"unsafe"
 )
 
+// *****************************************************************************
+// ********************************** Hash *************************************
 // From AFL.
 // Is this MurmurHash3?
 
@@ -57,4 +60,18 @@ func hashTrBits(traceBits []byte) (hash uint64) {
 	hash ^= hash >> endShift
 
 	return hash
+}
+
+// *****************************************************************************
+// ***************************** Trace value lookup ****************************
+
+const regulizer = 0.1
+
+var logVals [0x100]float64
+
+func init() {
+	logReg := math.Log(regulizer)
+	for i := 0; i < 0x100; i++ {
+		logVals[i] = math.Log(float64(i)+regulizer) - logReg
+	}
 }
