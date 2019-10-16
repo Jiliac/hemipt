@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"log"
 
 	"math"
+	"sort"
 	"time"
 
 	"gonum.org/v1/gonum/mat"
@@ -11,7 +13,7 @@ import (
 )
 
 // Phase 1 (short): fitness function collect some traces and then initialize the
-// dynamicPCA.
+// dynamicPCA. (Implemented in newDynPCA).
 // Phase 2 (short): collect data to recenter.
 // Phase 3 (short): collect data to rotate the basis.
 // Phase 4 (indefinite): full DynPCA algorithm. rotate and add new axis.
@@ -94,6 +96,7 @@ func (dynpca *dynamicPCA) newSample(trace []byte) {
 	} else if dynpca.phase3 && time.Now().Sub(dynpca.recenterT) > phase3Dur {
 		fmt.Println("PHASE 4")
 		// @TODO: rotate covmat and start adding new axis
+		dynpca.rotate()
 		dynpca.phase3, dynpca.phase4 = false, true
 	}
 
@@ -135,6 +138,96 @@ func (dynpca *dynamicPCA) recenter() {
 	m.Scale(float64(newSampN)/n, dynpca.covMat)
 	dynpca.covMat = m
 	dynpca.sampleN = newSampN
+}
+
+func (dynpca *dynamicPCA) rotate() (ok bool) {
+	// ** 1. Prepare data **
+	_, basisSize := dynpca.basis.Dims()
+	fmt.Printf("basisSize = %+v\n", basisSize)
+	covs := make([]float64, basisSize*basisSize)
+	for i := 0; i < basisSize; i++ {
+		for j := 0; j < basisSize; j++ {
+			cov := dynpca.covMat.At(i, j) / float64(dynpca.sampleN)
+			covs[i*basisSize+j] = cov
+		}
+	}
+	covMat := mat.NewSymDense(basisSize, covs)
+
+	// ** 2. Rotate **
+	ok, eVals, eVecs := factorize(covMat, basisSize)
+	if !ok {
+		log.Print("Could not factorize covariance matrix.")
+		return ok
+	}
+
+	// Test print
+	convCrit := computeConvergence(eVecs)
+	fmt.Printf("convCrit = %.3v\n", convCrit)
+	fmt.Printf("eVals = %.3v\n", eVals)
+	fmt.Printf("Eigen vectors:\n%.3v\n", mat.Formatted(eVecs))
+	m := new(mat.Dense)
+	m.Scale(1/float64(dynpca.sampleN), dynpca.covMat)
+	m.Mul(eVecs.T(), m)
+	m.Mul(m, eVecs)
+	fmt.Printf("Rotated covariance matrix:\n%.3v\n", mat.Formatted(m))
+
+	return ok
+}
+func factorize(symMat *mat.SymDense, basisSize int) (
+	ok bool, eVals []float64, eVecs *mat.Dense) {
+	// Gonum library is a little weird about its eigen decomposiiton
+	// implementation. So make a helper function around it.
+
+	var eigsym mat.EigenSym
+	ok = eigsym.Factorize(symMat, true)
+	if !ok {
+		return
+	}
+	//
+	vars := eigsym.Values(nil)
+	eVecs = new(mat.Dense)
+	eigsym.VectorsTo(eVecs)
+
+	var (
+		perm    = make([]int, basisSize)
+		permMat = new(mat.Dense)
+	)
+	eVals = make([]float64, basisSize)
+	// a. Find permutation to order eigen vectors/values.
+	for i := range perm {
+		perm[i] = i
+	}
+	sort.Slice(perm, func(i, j int) bool {
+		indexI, indexJ := perm[i], perm[j]
+		return vars[indexI] > vars[indexJ]
+	})
+	// b. Apply permutation
+	for i, index := range perm {
+		eVals[i] = vars[index]
+	}
+	permMat.Permutation(basisSize, perm)
+	eVecs.Mul(eVecs, permMat)
+
+	return ok, eVals, eVecs
+}
+func computeConvergence(ev *mat.Dense) (convCrit float64) {
+	r, c := ev.Dims()
+	//
+	for j := 0; j < c; j++ {
+		var maxJ, v float64
+		for i := 0; i < r; i++ {
+			v = ev.At(i, j)
+			v *= v
+			if v > maxJ {
+				maxJ = v
+			}
+			convCrit += v
+		}
+		convCrit -= maxJ
+	}
+	//
+	convCrit /= float64(c)
+	return convCrit
 }
 
 func (dynpca *dynamicPCA) String() (str string) {
