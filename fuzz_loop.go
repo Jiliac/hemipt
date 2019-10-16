@@ -50,7 +50,7 @@ func fuzzLoop(threads []*thread, seedInputs [][]byte) {
 			intChans.del(key)
 			wg.Done()
 
-			fmt.Printf("Local fitness: %v.\n", e.discoveryFit)
+			fmt.Printf("Local fitness: %v\n", e.discoveryFit)
 		}(threads[i], e)
 	}
 

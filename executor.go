@@ -86,13 +86,12 @@ func (e executor) execute(put *aflPutT) {
 
 	runInfo, _ := put.run(testCase)
 
-	runInfo.trace = put.trace
+	runInfo.trace = make([]byte, len(put.trace))
+	copy(runInfo.trace, put.trace)
 	dF := e.discoveryFit.isFit(runInfo)
 	isCrash := e.securityPolicy.isFit(runInfo)
 	//
 	if dF || isCrash {
-		runInfo.trace = make([]byte, len(put.trace))
-		copy(runInfo.trace, put.trace)
 		if dF {
 			e.fitChan <- runInfo
 		}

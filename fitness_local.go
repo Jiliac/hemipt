@@ -32,14 +32,11 @@ func (fm fitnessMultiplexer) isFit(runInfo runMeta) (fit bool) {
 	return fit
 }
 func (fm fitnessMultiplexer) String() (str string) {
-	str = "[ "
+	str = "[\n"
 	for i, ff := range fm {
-		str += ff.String()
-		if i != len(fm)-1 {
-			str += ", "
-		}
+		str += fmt.Sprintf("%d:\t%s\n", i, ff.String())
 	}
-	str += " ]"
+	str += "]"
 	return str
 }
 
@@ -132,7 +129,7 @@ func (pff *pcaFitFunc) isFit(runInfo runMeta) (fit bool) {
 	case _ = <-pff.initTimer.C:
 		pff.endInit()
 	default:
-		if len(pff.queue) > initQueueMax {
+		if len(pff.queue) >= initQueueMax {
 			pff.initTimer.Stop()
 			pff.endInit()
 		}
@@ -149,7 +146,7 @@ func (pff *pcaFitFunc) isFit(runInfo runMeta) (fit bool) {
 		return fit
 	}
 
-	//@TODO... DynPCA
+	pff.dynpca.newSample(runInfo.trace)
 
 	return fit
 }
@@ -163,4 +160,6 @@ func (pff *pcaFitFunc) endInit() {
 	pff.queue = nil
 }
 
-func (pff *pcaFitFunc) String() string { return "PCA Fitness Function" }
+func (pff *pcaFitFunc) String() string {
+	return pff.dynpca.String()
+}

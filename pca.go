@@ -1,8 +1,14 @@
 package main
 
 import (
+	"fmt"
+
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat"
+)
+
+const (
+	pcaInitDim = 10
 )
 
 type dynamicPCA struct {
@@ -12,6 +18,7 @@ type dynamicPCA struct {
 
 	sampleN int
 	sums    [mapSize]float64
+	covMat  *mat.Dense
 }
 
 func newDynPCA(queue [][]byte) (ok bool, dynpca *dynamicPCA) {
@@ -44,8 +51,43 @@ func newDynPCA(queue [][]byte) (ok bool, dynpca *dynamicPCA) {
 	ok = true
 
 	// ** 4. Prepare Structure **
-	dynpca.basis = new(mat.Dense)
-	pc.VectorsTo(dynpca.basis)
+	vecs := new(mat.Dense)
+	pc.VectorsTo(vecs)
+	dynpca.basis = mat.DenseCopyOf(vecs.Slice(0, mapSize, 0, pcaInitDim))
+	//
+	dynpca.covMat = mat.NewDense(pcaInitDim, pcaInitDim, nil)
+	vars := pc.VarsTo(nil)
+	for i := 0; i < pcaInitDim; i++ {
+		dynpca.covMat.Set(i, i, float64(dynpca.sampleN)*vars[i])
+	}
 
 	return ok, dynpca
+}
+
+func (dynpca *dynamicPCA) newSample(trace []byte) {
+	// @TODO: when do we re-compute the centers and/or covariance matrix.
+
+	// ** 1. Center data **
+	dynpca.sampleN++
+	sampMat := mat.NewDense(1, mapSize, nil)
+	for i, tr := range trace {
+		v := logVals[tr]
+		dynpca.sums[i] += v
+		sampMat.Set(0, i, v-dynpca.centers[i])
+	}
+
+	// ** 2. Project **
+	projMat := new(mat.Dense)
+	projMat.Mul(sampMat, dynpca.basis)
+
+	// ** 3. Update covariance matrix **
+	covs := new(mat.Dense)
+	covs.Mul(projMat.T(), projMat)
+	dynpca.covMat.Add(dynpca.covMat, covs)
+}
+
+func (dynpca *dynamicPCA) String() string {
+	var m mat.Dense
+	m.Scale(1/float64(dynpca.sampleN), dynpca.covMat)
+	return fmt.Sprintf("Covariance Matrix:\n%.3v", mat.Formatted(&m))
 }
