@@ -47,10 +47,10 @@ func fuzzLoop(threads []*thread, seedInputs [][]byte) {
 				}
 			}
 
+			fmt.Printf("Local fitness: %v\n", e.discoveryFit)
+
 			intChans.del(key)
 			wg.Done()
-
-			fmt.Printf("Local fitness: %v\n", e.discoveryFit)
 		}(threads[i], e)
 	}
 

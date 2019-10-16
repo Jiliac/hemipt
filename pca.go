@@ -4,13 +4,25 @@ import (
 	"fmt"
 
 	"math"
+	"time"
 
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat"
 )
 
+// Phase 1 (short): fitness function collect some traces and then initialize the
+// dynamicPCA.
+// Phase 2 (short): collect data to recenter.
+// Phase 3 (short): collect data to rotate the basis.
+// Phase 4 (indefinite): full DynPCA algorithm. rotate and add new axis.
+
 const (
 	pcaInitDim = 10
+
+	// Phase 2
+	phase2Dur = time.Second
+	// Phase 3
+	phase3Dur = phase2Dur
 )
 
 type dynamicPCA struct {
@@ -21,6 +33,9 @@ type dynamicPCA struct {
 	sampleN int
 	sums    [mapSize]float64
 	covMat  *mat.Dense
+
+	startT, recenterT      time.Time
+	phase2, phase3, phase4 bool
 }
 
 func newDynPCA(queue [][]byte) (ok bool, dynpca *dynamicPCA) {
@@ -62,14 +77,24 @@ func newDynPCA(queue [][]byte) (ok bool, dynpca *dynamicPCA) {
 	for i := 0; i < pcaInitDim; i++ {
 		dynpca.covMat.Set(i, i, float64(dynpca.sampleN)*vars[i])
 	}
+	//
+	dynpca.phase2 = true
+	dynpca.startT = time.Now()
 
 	return ok, dynpca
 }
 
 func (dynpca *dynamicPCA) newSample(trace []byte) {
-	// @TODO: when do we re-compute the centers and/or covariance matrix.
-	if dynpca.sampleN == 1000 {
+	if dynpca.phase2 && time.Now().Sub(dynpca.startT) > phase2Dur {
+		fmt.Println("PHASE 3")
 		dynpca.recenter()
+		dynpca.recenterT = time.Now()
+		dynpca.phase2, dynpca.phase3 = false, true
+		//
+	} else if dynpca.phase3 && time.Now().Sub(dynpca.recenterT) > phase3Dur {
+		fmt.Println("PHASE 4")
+		// @TODO: rotate covmat and start adding new axis
+		dynpca.phase3, dynpca.phase4 = false, true
 	}
 
 	// ** 1. Center data **
@@ -94,13 +119,22 @@ func (dynpca *dynamicPCA) newSample(trace []byte) {
 func (dynpca *dynamicPCA) recenter() {
 	var diff float64
 	n := float64(dynpca.sampleN)
+	newSampN := dynpca.sampleN / 10
 	for i := 0; i < mapSize; i++ {
 		c := dynpca.sums[i] / n
 		d := dynpca.centers[i] - c
 		diff += d * d
+		//
+		dynpca.centers[i] = c
+		dynpca.sums[i] = c * float64(newSampN)
 	}
 	diff = math.Sqrt(diff)
 	fmt.Printf("Centering difference: %.3v\n", diff)
+
+	m := new(mat.Dense)
+	m.Scale(float64(newSampN)/n, dynpca.covMat)
+	dynpca.covMat = m
+	dynpca.sampleN = newSampN
 }
 
 func (dynpca *dynamicPCA) String() (str string) {
