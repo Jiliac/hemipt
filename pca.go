@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 
+	"math"
+
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat"
 )
@@ -66,6 +68,9 @@ func newDynPCA(queue [][]byte) (ok bool, dynpca *dynamicPCA) {
 
 func (dynpca *dynamicPCA) newSample(trace []byte) {
 	// @TODO: when do we re-compute the centers and/or covariance matrix.
+	if dynpca.sampleN == 1000 {
+		dynpca.recenter()
+	}
 
 	// ** 1. Center data **
 	dynpca.sampleN++
@@ -86,8 +91,25 @@ func (dynpca *dynamicPCA) newSample(trace []byte) {
 	dynpca.covMat.Add(dynpca.covMat, covs)
 }
 
-func (dynpca *dynamicPCA) String() string {
+func (dynpca *dynamicPCA) recenter() {
+	var diff float64
+	n := float64(dynpca.sampleN)
+	for i := 0; i < mapSize; i++ {
+		c := dynpca.sums[i] / n
+		d := dynpca.centers[i] - c
+		diff += d * d
+	}
+	diff = math.Sqrt(diff)
+	fmt.Printf("Centering difference: %.3v\n", diff)
+}
+
+func (dynpca *dynamicPCA) String() (str string) {
+	dynpca.recenter()
+
+	str = fmt.Sprintf("#sample: %.3v\n", float64(dynpca.sampleN))
+	//
 	var m mat.Dense
 	m.Scale(1/float64(dynpca.sampleN), dynpca.covMat)
-	return fmt.Sprintf("Covariance Matrix:\n%.3v", mat.Formatted(&m))
+	str += fmt.Sprintf("Covariance Matrix:\n%.3v", mat.Formatted(&m))
+	return str
 }

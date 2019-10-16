@@ -58,6 +58,7 @@ type brCovFitFunc struct {
 	brMap  map[int]struct{}
 	hashes map[uint64]struct{}
 	brList []int
+	execN  int
 }
 
 func newBrCovFitFunc() *brCovFitFunc {
@@ -69,6 +70,7 @@ func newBrCovFitFunc() *brCovFitFunc {
 
 func (fitFunc *brCovFitFunc) isFit(runInfo runMeta) (fit bool) {
 	fitFunc.hashes[runInfo.hash] = struct{}{}
+	fitFunc.execN++
 
 	trace := runInfo.trace
 	for i, tr := range trace {
@@ -86,9 +88,10 @@ func (fitFunc *brCovFitFunc) isFit(runInfo runMeta) (fit bool) {
 }
 
 func (fitFunc *brCovFitFunc) String() string {
-	return fmt.Sprintf("%.3v branch and,\t%.3v hashes",
+	return fmt.Sprintf("%.3v branch and,\t%.3v hashes,\t #exec: %.3v",
 		float64(len(fitFunc.brMap)),
 		float64(len(fitFunc.hashes)),
+		float64(fitFunc.execN),
 	)
 }
 
@@ -100,7 +103,7 @@ func (fitFunc *brCovFitFunc) String() string {
 // modification or even just rewriting all.
 
 const (
-	pcaInitTime  = time.Minute
+	pcaInitTime  = 2 * time.Second
 	initQueueMax = 100
 )
 
@@ -136,10 +139,10 @@ func (pff *pcaFitFunc) isFit(runInfo runMeta) (fit bool) {
 	}
 
 	// Really sure about this? It can be a strong bias.
-	if _, ok := pff.hashes[runInfo.hash]; ok {
-		return fit
-	}
-	pff.hashes[runInfo.hash] = struct{}{}
+	//if _, ok := pff.hashes[runInfo.hash]; ok {
+	//	return fit
+	//}
+	//pff.hashes[runInfo.hash] = struct{}{}
 
 	if pff.initializing {
 		pff.queue = append(pff.queue, runInfo.trace)
