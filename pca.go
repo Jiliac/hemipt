@@ -35,7 +35,8 @@ type dynamicPCA struct {
 
 	sampleN int
 	sums    [mapSize]float64
-	covMat  *mat.Dense
+	covMat  *mat.Dense // Cumulative
+	sqNorm  float64    // Cumulative
 
 	startT, recenterT      time.Time
 	phase2, phase3, phase4 bool
@@ -57,8 +58,9 @@ func newDynPCA(queue [][]byte) (ok bool, dynpca *dynamicPCA) {
 	for j := 0; j < mapSize; j++ {
 		dynpca.centers[j] = dynpca.sums[j] / float64(dynpca.sampleN)
 		for i := 0; i < dynpca.sampleN; i++ {
-			y := logVals[queue[i][j]]
-			samplesMat.Set(i, j, y-dynpca.centers[j])
+			y := logVals[queue[i][j]] - dynpca.centers[j]
+			samplesMat.Set(i, j, y)
+			dynpca.sqNorm += y * y
 		}
 	}
 
@@ -111,7 +113,9 @@ func (dynpca *dynamicPCA) newSample(trace []byte) {
 	for i, tr := range trace {
 		v := logVals[tr]
 		dynpca.sums[i] += v
-		sampMat.Set(0, i, v-dynpca.centers[i])
+		v -= dynpca.centers[i]
+		dynpca.sqNorm += v * v
+		sampMat.Set(0, i, v)
 	}
 
 	// ** 2. Project **
@@ -140,15 +144,16 @@ func (dynpca *dynamicPCA) recenter() {
 	fmt.Printf("Centering difference: %.3v\n", diff)
 
 	m := new(mat.Dense)
-	m.Scale(float64(newSampN)/n, dynpca.covMat)
+	ratio := float64(newSampN) / n
+	m.Scale(ratio, dynpca.covMat)
 	dynpca.covMat = m
+	dynpca.sqNorm = dynpca.sqNorm * ratio
 	dynpca.sampleN = newSampN
 }
 
 func (dynpca *dynamicPCA) rotate() (ok bool) {
 	// ** 1. Prepare data **
 	_, basisSize := dynpca.basis.Dims()
-	fmt.Printf("basisSize = %+v\n", basisSize)
 	covs := make([]float64, basisSize*basisSize)
 	for i := 0; i < basisSize; i++ {
 		for j := 0; j < basisSize; j++ {
@@ -168,8 +173,8 @@ func (dynpca *dynamicPCA) rotate() (ok bool) {
 
 	// Test print
 	convCrit := computeConvergence(eVecs)
-	fmt.Printf("convCrit = %.3v\n", convCrit)
-	fmt.Printf("eVals = %.3v\n", eVals)
+	fmt.Printf("convCrit: %.3v\n", convCrit)
+	fmt.Printf("eVals: %.3v\n", eVals)
 	fmt.Printf("Eigen vectors:\n%.3v\n", mat.Formatted(eVecs))
 	m := new(mat.Dense)
 	m.Scale(1/float64(dynpca.sampleN), dynpca.covMat)
@@ -246,12 +251,21 @@ func computeConvergence(ev *mat.Dense) (convCrit float64) {
 }
 
 func (dynpca *dynamicPCA) String() (str string) {
-	dynpca.recenter()
-
 	str = fmt.Sprintf("#sample: %.3v\n", float64(dynpca.sampleN))
 	//
+	normalizer := 1 / float64(dynpca.sampleN)
+	sqNorm := dynpca.sqNorm * normalizer
+	//
 	var m mat.Dense
-	m.Scale(1/float64(dynpca.sampleN), dynpca.covMat)
-	str += fmt.Sprintf("Covariance Matrix:\n%.3v", mat.Formatted(&m))
+	var totSpaceVar float64
+	_, basisSize := dynpca.basis.Dims()
+	m.Scale(normalizer, dynpca.covMat)
+	for i := 0; i < basisSize; i++ {
+		totSpaceVar += m.At(i, i)
+	}
+	str += fmt.Sprintf("Square Norm: %.3v (%.1f%%) -\tCovariance Matrix:\n%.3v",
+		sqNorm, 100*totSpaceVar/sqNorm, mat.Formatted(&m))
+
+	dynpca.recenter()
 	return str
 }
