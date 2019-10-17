@@ -33,20 +33,23 @@ type dynamicPCA struct {
 	centers [mapSize]float64
 	basis   *mat.Dense
 
-	sampleN  int
-	sums     [mapSize]float64
-	covMat   *mat.Dense // Covariance Matrix; cumulative
-	sqNorm   float64    // Square norm (2nd moment); cumulative
-	quadNorm float64    // Quadratic norm (for ~kurtosis); cumulative
-	forthMos *mat.Dense // Forth moments; cumulative
+	sampleN int
+	sums    [mapSize]float64
+	covMat  *mat.Dense // Covariance Matrix; cumulative
+	stats   *basisStats
 
 	// Phase-based initialization
 	startT, recenterT      time.Time
 	phase2, phase3, phase4 bool
 }
+type basisStats struct {
+	sqNorm   float64    // Square norm (2nd moment); cumulative
+	quadNorm float64    // Quadratic norm (for ~kurtosis); cumulative
+	forthMos *mat.Dense // Forth moments; cumulative
+}
 
 func newDynPCA(queue [][]byte) (ok bool, dynpca *dynamicPCA) {
-	dynpca = new(dynamicPCA)
+	dynpca = &dynamicPCA{stats: new(basisStats)}
 
 	// ** 1. Compute centers **
 	for _, trace := range queue {
@@ -63,9 +66,7 @@ func newDynPCA(queue [][]byte) (ok bool, dynpca *dynamicPCA) {
 		for i := 0; i < dynpca.sampleN; i++ {
 			y := logVals[queue[i][j]] - dynpca.centers[j]
 			samplesMat.Set(i, j, y)
-			sqNorm := y * y
-			dynpca.sqNorm += sqNorm
-			dynpca.quadNorm += sqNorm
+			dynpca.stats.addSqNorm(y * y)
 		}
 	}
 
@@ -87,7 +88,7 @@ func newDynPCA(queue [][]byte) (ok bool, dynpca *dynamicPCA) {
 	for i := 0; i < pcaInitDim; i++ {
 		dynpca.covMat.Set(i, i, float64(dynpca.sampleN)*vars[i])
 	}
-	dynpca.forthMos = mat.NewDense(1, pcaInitDim, make([]float64, pcaInitDim))
+	dynpca.stats.initStats(dynpca.basis, samplesMat)
 	//
 	dynpca.phase2 = true
 	dynpca.startT = time.Now()
@@ -120,9 +121,7 @@ func (dynpca *dynamicPCA) newSample(trace []byte) {
 		v := logVals[tr]
 		dynpca.sums[i] += v
 		v -= dynpca.centers[i]
-		sqNorm := v * v
-		dynpca.sqNorm += sqNorm
-		dynpca.quadNorm += sqNorm * sqNorm
+		dynpca.stats.addSqNorm(v * v)
 		sampMat.Set(0, i, v)
 	}
 
@@ -135,8 +134,7 @@ func (dynpca *dynamicPCA) newSample(trace []byte) {
 	covs.Mul(projMat.T(), projMat)
 	dynpca.covMat.Add(dynpca.covMat, covs)
 	//
-	projMat.Apply(func(i, j int, v float64) float64 { return v * v * v * v }, projMat)
-	dynpca.forthMos.Add(dynpca.forthMos, projMat)
+	dynpca.stats.addProj(projMat)
 }
 
 func (dynpca *dynamicPCA) recenter() {
@@ -158,9 +156,7 @@ func (dynpca *dynamicPCA) recenter() {
 	ratio := float64(newSampN) / n
 	m.Scale(ratio, dynpca.covMat)
 	dynpca.covMat = m
-	dynpca.sqNorm = dynpca.sqNorm * ratio
-	dynpca.quadNorm = dynpca.quadNorm * ratio
-	dynpca.forthMos.Scale(ratio, dynpca.forthMos)
+	dynpca.stats.softReset(ratio)
 	dynpca.sampleN = newSampN
 }
 
@@ -270,8 +266,8 @@ func (dynpca *dynamicPCA) String() (str string) {
 	str = fmt.Sprintf("#sample: %.3v\n", float64(dynpca.sampleN))
 	//
 	normalizer := 1 / float64(dynpca.sampleN)
-	sqNorm := dynpca.sqNorm * normalizer
-	kurtosis := dynpca.quadNorm * normalizer / (sqNorm * sqNorm)
+	sqNorm := dynpca.stats.sqNorm * normalizer
+	kurtosis := dynpca.stats.quadNorm * normalizer / (sqNorm * sqNorm)
 	//
 	var m mat.Dense
 	var totSpaceVar float64
@@ -283,15 +279,53 @@ func (dynpca *dynamicPCA) String() (str string) {
 	str += fmt.Sprintf("Square Norm: %.3v (%.1f%%) -\tKurtosis: %.3v\n",
 		sqNorm, 100*totSpaceVar/sqNorm, kurtosis)
 	//
-	fm := new(mat.Dense)
-	fm.Scale(normalizer, dynpca.forthMos)
-	fm.Apply(func(i, j int, v float64) float64 {
-		variance := m.At(j, j)
-		return v / (variance * variance)
-	}, fm)
+	fm := dynpca.stats.getKurtosis(&m, normalizer)
 	str += fmt.Sprintf("Forth moments:\t%.3v\n", mat.Formatted(fm))
 	str += fmt.Sprintf("Covariance Matrix:\n%.3v", mat.Formatted(&m))
 
 	dynpca.recenter()
 	return str
+}
+
+// *****************************************************************************
+// *************************** Basis Statistics ********************************
+
+func (stats *basisStats) initStats(basis, samplesMat *mat.Dense) {
+	stats.forthMos = mat.NewDense(1, pcaInitDim, make([]float64, pcaInitDim))
+	projections := new(mat.Dense)
+	projections.Mul(samplesMat, basis)
+	r, c := projections.Dims()
+	for i := 0; i < r; i++ {
+		proj := projections.RawRowView(i)
+		projMat := mat.NewDense(1, c, proj)
+		stats.addProj(projMat)
+	}
+}
+
+func (stats *basisStats) addSqNorm(sqNorm float64) {
+	stats.sqNorm += sqNorm
+	stats.quadNorm += sqNorm * sqNorm
+}
+
+func (stats *basisStats) addProj(projMat *mat.Dense) {
+	quadrupling := func(i, j int, v float64) float64 { return v * v * v * v }
+	projMat.Apply(quadrupling, projMat)
+	stats.forthMos.Add(stats.forthMos, projMat)
+}
+
+func (stats *basisStats) softReset(ratio float64) {
+	stats.sqNorm *= ratio
+	stats.quadNorm *= ratio
+	stats.forthMos.Scale(ratio, stats.forthMos)
+}
+
+func (stats *basisStats) getKurtosis(covMat *mat.Dense, normalizer float64) (
+	fm *mat.Dense) {
+	fm = new(mat.Dense)
+	fm.Scale(normalizer, stats.forthMos)
+	fm.Apply(func(i, j int, v float64) float64 {
+		variance := covMat.At(j, j)
+		return v / (variance * variance)
+	}, fm)
+	return fm
 }
