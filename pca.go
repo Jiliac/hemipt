@@ -46,6 +46,11 @@ type basisStats struct {
 	sqNorm   float64    // Square norm (2nd moment); cumulative
 	quadNorm float64    // Quadratic norm (for ~kurtosis); cumulative
 	forthMos *mat.Dense // Forth moments; cumulative
+
+	// Histograms (on for each dimensions)
+	useHisto bool
+	steps    []float64 // The bucket size of each dimension
+	histos   []map[int]float64
 }
 
 func newDynPCA(queue [][]byte) (ok bool, dynpca *dynamicPCA) {
@@ -198,6 +203,7 @@ func (dynpca *dynamicPCA) rotate() (ok bool) {
 			dynpca.covMat.Set(i, i, eVals[i]*float64(dynpca.sampleN))
 		}
 		dynpca.basis.Mul(dynpca.basis, eVecs)
+		dynpca.stats.initHisto(eVals)
 	}
 
 	return ok
@@ -302,18 +308,50 @@ func (stats *basisStats) initStats(basis, samplesMat *mat.Dense) {
 	}
 }
 
+func (stats *basisStats) initHisto(vars []float64) { // This is mostly just allocation.
+	stats.useHisto = true
+	stats.steps = make([]float64, len(vars))
+	stats.histos = make([]map[int]float64, len(vars))
+	for i, v := range vars {
+		stats.steps[i] = math.Sqrt(v) / 3
+		stats.histos[i] = make(map[int]float64)
+		for j := -5; j <= 5; j++ {
+			stats.histos[i][j] = 0
+		}
+	}
+}
+
 func (stats *basisStats) addSqNorm(sqNorm float64) {
 	stats.sqNorm += sqNorm
 	stats.quadNorm += sqNorm * sqNorm
 }
 
 func (stats *basisStats) addProj(projMat *mat.Dense) {
+	if stats.useHisto {
+		var ok bool
+		proj := projMat.RawRowView(0)
+		for i, val := range proj {
+			bucket := int(val / stats.steps[i])
+			if _, ok = stats.histos[i][bucket]; !ok {
+				stats.histos[i][bucket] = 0
+			}
+			stats.histos[i][bucket] += 1
+		}
+	}
+
 	quadrupling := func(i, j int, v float64) float64 { return v * v * v * v }
 	projMat.Apply(quadrupling, projMat)
 	stats.forthMos.Add(stats.forthMos, projMat)
 }
 
 func (stats *basisStats) softReset(ratio float64) {
+	if stats.useHisto {
+		for i := range stats.histos {
+			for bucket, v := range stats.histos[i] {
+				stats.histos[i][bucket] = v * ratio
+			}
+		}
+	}
 	stats.sqNorm *= ratio
 	stats.quadNorm *= ratio
 	stats.forthMos.Scale(ratio, stats.forthMos)
@@ -328,4 +366,17 @@ func (stats *basisStats) getKurtosis(covMat *mat.Dense, normalizer float64) (
 		return v / (variance * variance)
 	}, fm)
 	return fm
+}
+
+// For test
+func (stats *basisStats) printHistoCounts() {
+	var vals []int
+	for _, histo := range stats.histos {
+		var tot float64
+		for _, v := range histo {
+			tot += v
+		}
+		vals = append(vals, int(tot))
+	}
+	fmt.Printf("vals = %d\n", vals)
 }

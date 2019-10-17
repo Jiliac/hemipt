@@ -72,6 +72,10 @@ func analyzeExecs(executors []*executor) {
 	convCrit := computeConvergence(basisProj)
 	fmt.Printf("convCrit: %.3v\n", convCrit)
 	fmt.Printf("Basis projection:\n%.3v\n", mat.Formatted(basisProj))
+
+	for _, pca := range pcas {
+		pca.stats.printHistoCounts()
+	}
 }
 func getPCAs(executors []*executor) (pcas []*dynamicPCA) {
 	for _, e := range executors {
