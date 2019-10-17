@@ -24,7 +24,8 @@ const (
 	// Phase 2
 	phase2Dur = time.Second
 	// Phase 3
-	phase3Dur = phase2Dur
+	phase3Dur     = phase2Dur
+	convCritFloor = 0.05 // Floor to apply rotation.
 )
 
 type dynamicPCA struct {
@@ -96,8 +97,12 @@ func (dynpca *dynamicPCA) newSample(trace []byte) {
 	} else if dynpca.phase3 && time.Now().Sub(dynpca.recenterT) > phase3Dur {
 		fmt.Println("PHASE 4")
 		// @TODO: rotate covmat and start adding new axis
-		dynpca.rotate()
-		dynpca.phase3, dynpca.phase4 = false, true
+		ok := dynpca.rotate()
+		if ok {
+			dynpca.phase3, dynpca.phase4 = false, true
+		} else {
+			dynpca.recenterT = time.Now()
+		}
 	}
 
 	// ** 1. Center data **
@@ -159,6 +164,7 @@ func (dynpca *dynamicPCA) rotate() (ok bool) {
 		log.Print("Could not factorize covariance matrix.")
 		return ok
 	}
+	ok = true
 
 	// Test print
 	convCrit := computeConvergence(eVecs)
@@ -170,6 +176,15 @@ func (dynpca *dynamicPCA) rotate() (ok bool) {
 	m.Mul(eVecs.T(), m)
 	m.Mul(m, eVecs)
 	fmt.Printf("Rotated covariance matrix:\n%.3v\n", mat.Formatted(m))
+
+	// ** 3. Apply decomposition **
+	if convCrit > convCritFloor {
+		dynpca.covMat = mat.NewDense(basisSize, basisSize, nil)
+		for i := 0; i < basisSize; i++ {
+			dynpca.covMat.Set(i, i, eVals[i]*float64(dynpca.sampleN))
+		}
+		dynpca.basis.Mul(dynpca.basis, eVecs)
+	}
 
 	return ok
 }
