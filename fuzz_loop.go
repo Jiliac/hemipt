@@ -8,18 +8,20 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+
+	"gonum.org/v1/gonum/mat"
 )
 
-func fuzzLoop(threads []*thread, seedInputs [][]byte) {
+func fuzzLoop(threads []*thread, seedInputs [][]byte) (executors []*executor) {
 	if len(seedInputs) > len(threads) {
 		log.Println("For now, does not support seed scheduling. " +
 			"Need at least one thread per seed.")
 		return
 	}
 
+	var wg sync.WaitGroup
 	fitChan := makeGlbFitness()
 
-	var wg sync.WaitGroup
 	for i, seedI := range seedInputs {
 		discoveryFit := fitnessMultiplexer{newBrCovFitFunc(), newPCAFitFunc()}
 		e := &executor{
@@ -29,6 +31,7 @@ func fuzzLoop(threads []*thread, seedInputs [][]byte) {
 			fitChan:        fitChan,
 			crashChan:      devNullFitChan,
 		}
+		executors = append(executors, e)
 
 		wg.Add(1)
 		go func(t *thread, e *executor) {
@@ -55,6 +58,35 @@ func fuzzLoop(threads []*thread, seedInputs [][]byte) {
 	}
 
 	wg.Wait()
+	return executors
+}
+
+// Debug/test for now
+func analyzeExecs(executors []*executor) {
+	fmt.Println("")
+	pcas := getPCAs(executors)
+	basis1, basis2 := pcas[0].basis, pcas[1].basis
+
+	basisProj := new(mat.Dense)
+	basisProj.Mul(basis1.T(), basis2)
+	convCrit := computeConvergence(basisProj)
+	fmt.Printf("convCrit: %.3v\n", convCrit)
+	fmt.Printf("Basis projection:\n%.3v\n", mat.Formatted(basisProj))
+}
+func getPCAs(executors []*executor) (pcas []*dynamicPCA) {
+	for _, e := range executors {
+		df := e.discoveryFit
+		if ff, ok := df.(fitnessMultiplexer); ok {
+			for _, ffi := range ff {
+				if pcaFit, ok := ffi.(*pcaFitFunc); ok {
+					pcas = append(pcas, pcaFit.dynpca)
+				}
+			}
+		} else if pcaFit, ok := df.(*pcaFitFunc); ok {
+			pcas = append(pcas, pcaFit.dynpca)
+		}
+	}
+	return pcas
 }
 
 // *****************************************************************************

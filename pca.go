@@ -40,6 +40,7 @@ type dynamicPCA struct {
 	quadNorm float64    // Quadratic norm (for ~kurtosis); cumulative
 	forthMos *mat.Dense // Forth moments; cumulative
 
+	// Phase-based initialization
 	startT, recenterT      time.Time
 	phase2, phase3, phase4 bool
 }

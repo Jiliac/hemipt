@@ -41,31 +41,11 @@ func main() {
 	// ** Test **
 	//seedExecTest(threads, seedInputs)
 
-	fuzzLoop(threads, seedInputs)
+	executors := fuzzLoop(threads, seedInputs)
+	analyzeExecs(executors)
 
 	for _, t := range threads {
 		t.clean()
-	}
-}
-
-func seedExecTest(threads []*thread, seedInputs [][]byte) {
-	if len(threads) < 2 {
-		fmt.Println("Not enough threads for seedExecTest to run.")
-		return
-	}
-
-	for i, in := range append(seedInputs, seedInputs...) {
-		e := executor{
-			ig:             seedCopier(in),
-			discoveryFit:   trueFitFunc{},
-			securityPolicy: falseFitFunc{},
-			fitChan:        devNullFitChan,
-			crashChan:      devNullFitChan,
-		}
-
-		t := threads[i%2]
-		t.execChan <- &e
-		<-t.endChan
 	}
 }
 
