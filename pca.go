@@ -377,15 +377,57 @@ func (stats *basisStats) getMoments(covMat *mat.Dense, normalizer float64) (
 	return tm, fm
 }
 
-// For test
-func (stats *basisStats) printHistoCounts() {
-	var vals []int
-	for _, histo := range stats.histos {
-		var tot float64
-		for _, v := range histo {
-			tot += v
-		}
-		vals = append(vals, int(tot))
+// *****************************************************************************
+// ************************** Histogram Analysis *******************************
+// Some modelization test.
+
+// *** Some distribtutions CDF definition ***
+var sqrt2 = math.Sqrt(2)
+
+type distribution interface{ cdf(x float64) float64 }
+type uniDist struct{ start, end float64 }
+type normalDist struct{ mu, sig float64 }
+
+func (ud uniDist) cdf(x float64) float64 {
+	if x < ud.start {
+		return 0
+	} else if x > ud.end {
+		return 1
 	}
-	fmt.Printf("vals = %d\n", vals)
+	return (x - ud.start) / (ud.end - ud.start)
+}
+func (nd normalDist) cdf(x float64) (c float64) {
+	c = (x - nd.mu) / (nd.sig * sqrt2)
+	c = 0.5 * (1 + math.Erf(c))
+	return c
+}
+
+// *** Residual Square Sums (RSS, or SSE) ***
+func residualSumSquares(histo map[int]float64, step float64, dist distribution) (
+	rss float64) {
+	var min, max int
+	var tot float64
+	for i, v := range histo {
+		tot += v
+		if i < min {
+			min = i
+		} else if i < max {
+			max = i
+		}
+	}
+
+	errLow, errTop := dist.cdf(-float64(min)*step), 1-dist.cdf(float64(max)*step)
+	rss = errLow*errLow + errTop*errTop
+	for i := min; i < max; i++ {
+		start, end := float64(i)*step, float64(i+1)*step
+		distVal := dist.cdf(end) - dist.cdf(start)
+		var y float64
+		if cnt, ok := histo[i]; ok {
+			y = cnt / tot
+		}
+		err := y - distVal
+		rss = err * err
+	}
+
+	return rss
 }
