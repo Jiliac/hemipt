@@ -29,6 +29,8 @@ const (
 	// Phase 3
 	phase3Dur     = phase2Dur
 	convCritFloor = 0.05 // Floor to apply rotation.
+
+	bucketSensitiveness = 5
 )
 
 type dynamicPCA struct {
@@ -317,7 +319,7 @@ func (stats *basisStats) initHisto(vars []float64) { // This is mostly just allo
 	stats.steps = make([]float64, len(vars))
 	stats.histos = make([]map[int]float64, len(vars))
 	for i, v := range vars {
-		stats.steps[i] = math.Sqrt(v) / 3
+		stats.steps[i] = math.Sqrt(v) / bucketSensitiveness
 		stats.histos[i] = make(map[int]float64)
 		for j := -5; j <= 5; j++ {
 			stats.histos[i][j] = 0
@@ -336,7 +338,12 @@ func (stats *basisStats) addProj(projMat *mat.Dense) {
 		var ok bool
 		proj := projMat.RawRowView(0)
 		for i, val := range proj {
+			// If x \in bucket n, then x \in [n*step, (n+1)*step]
 			bucket := int(val / stats.steps[i])
+			if val < 0 {
+				bucket--
+			}
+			//
 			if _, ok = stats.histos[i][bucket]; !ok {
 				stats.histos[i][bucket] = 0
 			}
@@ -404,9 +411,9 @@ func (nd normalDist) cdf(x float64) (c float64) {
 	return c
 }
 
-// *** Residual Square Sums (RSS, or SSE) ***
-func residualSumSquares(histo map[int]float64, step float64, dist distribution) (
-	rss float64) {
+// *** Statistical Test on Histogram ***
+func statHistoTest(histo map[int]float64, step float64, dist distribution) (
+	test float64) {
 	var min, max int
 	var tot float64
 	for i, v := range histo {
@@ -418,20 +425,30 @@ func residualSumSquares(histo map[int]float64, step float64, dist distribution) 
 		}
 	}
 
-	errLow, errTop := dist.cdf(float64(min)*step), 1-dist.cdf(float64(max)*step)
-	rss = errLow*errLow + errTop*errTop
+	cum := 1.0
 	for i := min; i < max; i++ {
-		start, end := float64(i)*step, float64(i+1)*step
-		distVal := dist.cdf(end) - dist.cdf(start)
-		var y float64
-		if cnt, ok := histo[i]; ok {
-			y = cnt / tot
+		if _, ok := histo[i]; !ok {
+			continue
 		}
-		err := y - distVal
-		rss += err * err
+		start, end := float64(i)*step, float64(i+1)*step
+		distVal := dist.cdf((start + end) / 2)
+		cnt := histo[i]
+		test += cramerVonMises(cum, cum+cnt, tot, distVal)
+		cum += cnt
 	}
-
-	return rss
+	return math.Sqrt(test)
+}
+func cramerVonMises(start, end, tot, f float64) (test float64) {
+	// sum_{i=a}^b ((2.i-1)/(2.n) - f) =
+	//   (b-a+1) [(a.a + a.b - 2.a + b.b - b) / (3.n.n) - c.(a+b)/n + c.c]
+	squareSum := start*start + start*end - 2*start + end*end - end
+	squareSum = squareSum / (3 * tot * tot)
+	sum := f * (start + end) / tot
+	test = squareSum - sum + f*f
+	//
+	interval := end - start + 1
+	test *= interval / tot
+	return test
 }
 
 // *** Printing ***
@@ -441,10 +458,10 @@ func printCompoStats(stats *basisStats, tm, fm *mat.Dense) string {
 	table.SetHeader([]string{"PC", "Skewness", "Kurtosis", "Normal_RSS", "Uni RSS"})
 
 	for i, histo := range stats.histos {
-		sig := 3 * stats.steps[i]
+		sig := stats.steps[i] * bucketSensitiveness
 		normal := normalDist{mu: 0, sig: sig}
-		normRSS := residualSumSquares(histo, stats.steps[i], normal)
-		uniRSS := residualSumSquares(histo, stats.steps[i], uniDist{-sig, sig})
+		normRSS := statHistoTest(histo, stats.steps[i], normal)
+		uniRSS := statHistoTest(histo, stats.steps[i], uniDist{-sig, sig})
 
 		table.Append([]string{
 			fmt.Sprintf("%02d", i),
