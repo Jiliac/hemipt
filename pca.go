@@ -10,6 +10,9 @@ import (
 
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat"
+
+	"github.com/olekukonko/tablewriter"
+	"strings"
 )
 
 // Phase 1 (short): fitness function collect some traces and then initialize the
@@ -285,8 +288,7 @@ func (dynpca *dynamicPCA) String() (str string) {
 		sqNorm, 100*totSpaceVar/sqNorm)
 	//
 	tm, fm := dynpca.stats.getMoments(&m, normalizer)
-	str += fmt.Sprintf("Third moments:\t%.3v\n", mat.Formatted(tm))
-	str += fmt.Sprintf("Forth moments:\t%.3v\n", mat.Formatted(fm))
+	str += printCompoStats(dynpca.stats, tm, fm)
 	//
 	str += fmt.Sprintf("Covariance Matrix:\n%.3v", mat.Formatted(&m))
 
@@ -411,12 +413,12 @@ func residualSumSquares(histo map[int]float64, step float64, dist distribution) 
 		tot += v
 		if i < min {
 			min = i
-		} else if i < max {
+		} else if i > max {
 			max = i
 		}
 	}
 
-	errLow, errTop := dist.cdf(-float64(min)*step), 1-dist.cdf(float64(max)*step)
+	errLow, errTop := dist.cdf(float64(min)*step), 1-dist.cdf(float64(max)*step)
 	rss = errLow*errLow + errTop*errTop
 	for i := min; i < max; i++ {
 		start, end := float64(i)*step, float64(i+1)*step
@@ -426,8 +428,33 @@ func residualSumSquares(histo map[int]float64, step float64, dist distribution) 
 			y = cnt / tot
 		}
 		err := y - distVal
-		rss = err * err
+		rss += err * err
 	}
 
 	return rss
+}
+
+// *** Printing ***
+func printCompoStats(stats *basisStats, tm, fm *mat.Dense) string {
+	var b strings.Builder
+	table := tablewriter.NewWriter(&b)
+	table.SetHeader([]string{"PC", "Skewness", "Kurtosis", "Normal_RSS", "Uni RSS"})
+
+	for i, histo := range stats.histos {
+		sig := 3 * stats.steps[i]
+		normal := normalDist{mu: 0, sig: sig}
+		normRSS := residualSumSquares(histo, stats.steps[i], normal)
+		uniRSS := residualSumSquares(histo, stats.steps[i], uniDist{-sig, sig})
+
+		table.Append([]string{
+			fmt.Sprintf("%02d", i),
+			fmt.Sprintf("%.3v", tm.At(0, i)),
+			fmt.Sprintf("%.3v", fm.At(0, i)),
+			fmt.Sprintf("%.3v", normRSS),
+			fmt.Sprintf("%.3v", uniRSS),
+		})
+	}
+
+	table.Render()
+	return b.String()
 }
