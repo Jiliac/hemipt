@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	"encoding/csv"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -72,6 +73,8 @@ func analyzeExecs(executors []*executor) {
 	convCrit := computeConvergence(basisProj)
 	fmt.Printf("convCrit: %.3v\n", convCrit)
 	fmt.Printf("Basis projection:\n%.3v\n", mat.Formatted(basisProj))
+
+	exportHistos(pcas, "./histos.csv")
 }
 func getPCAs(executors []*executor) (pcas []*dynamicPCA) {
 	for _, e := range executors {
@@ -87,6 +90,43 @@ func getPCAs(executors []*executor) (pcas []*dynamicPCA) {
 		}
 	}
 	return pcas
+}
+func exportHistos(pcas []*dynamicPCA, path string) {
+	if len(pcas) == 0 {
+		return
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		log.Printf("Problem opening histo CSV file: %v.\n", err)
+		return
+	}
+
+	w := csv.NewWriter(f)
+	records := [][]string{[]string{
+		"seed_n", "dim_n", "bin_n", "start", "end", "count",
+	}}
+
+	for i := range pcas {
+		histos, steps := pcas[i].stats.histos, pcas[i].stats.steps
+		for j, histo := range histos {
+			for k, cnt := range histo {
+				//start, end := float64(i)*step, float64(i+1)*step
+				records = append(records, []string{
+					fmt.Sprintf("%d", i),                     // seed_n
+					fmt.Sprintf("%d", j),                     // dim_n
+					fmt.Sprintf("%d", k),                     // bin_n
+					fmt.Sprintf("%f", float64(k)*steps[j]),   // start
+					fmt.Sprintf("%f", float64(k+1)*steps[j]), // end
+					fmt.Sprintf("%f", cnt),                   // count
+				})
+			}
+		}
+	}
+
+	w.WriteAll(records)
+	if err := w.Error(); err != nil {
+		log.Printf("Couldn't record histograms: %v.\n", err)
+	}
 }
 
 // *****************************************************************************
