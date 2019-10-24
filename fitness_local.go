@@ -138,11 +138,12 @@ func (pff *pcaFitFunc) isFit(runInfo runMeta) (fit bool) {
 		}
 	}
 
-	// Really sure about this? It can be a strong bias.
+	// Not really sure about this. It can make a strong bias.
+	//
 	//if _, ok := pff.hashes[runInfo.hash]; ok {
 	//	return fit
 	//}
-	//pff.hashes[runInfo.hash] = struct{}{}
+	pff.hashes[runInfo.hash] = struct{}{}
 
 	if pff.initializing {
 		pff.queue = append(pff.queue, runInfo.trace)

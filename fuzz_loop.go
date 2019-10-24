@@ -65,7 +65,8 @@ func fuzzLoop(threads []*thread, seedInputs [][]byte) (executors []*executor) {
 // Debug/test for now
 func analyzeExecs(executors []*executor) {
 	fmt.Println("")
-	pcas := getPCAs(executors)
+	pcaFits := getPCAFits(executors)
+	pcas := getPCAs(pcaFits)
 	basis1, basis2 := pcas[0].basis, pcas[1].basis
 
 	basisProj := new(mat.Dense)
@@ -73,23 +74,45 @@ func analyzeExecs(executors []*executor) {
 	convCrit := computeConvergence(basisProj)
 	fmt.Printf("convCrit: %.3v\n", convCrit)
 	fmt.Printf("Basis projection:\n%.3v\n", mat.Formatted(basisProj))
+	//
+	selfMul := new(mat.Dense)
+	selfMul.Mul(basisProj, basisProj.T())
+	fmt.Printf("Self product:\n%.3v\n", mat.Formatted(selfMul))
+
+	compareHashes(pcaFits[0].hashes, pcaFits[1].hashes)
 
 	exportHistos(pcas, "./histos.csv")
 }
-func getPCAs(executors []*executor) (pcas []*dynamicPCA) {
+func getPCAFits(executors []*executor) (pcaFits []*pcaFitFunc) {
 	for _, e := range executors {
 		df := e.discoveryFit
 		if ff, ok := df.(fitnessMultiplexer); ok {
 			for _, ffi := range ff {
 				if pcaFit, ok := ffi.(*pcaFitFunc); ok {
-					pcas = append(pcas, pcaFit.dynpca)
+					pcaFits = append(pcaFits, pcaFit)
 				}
 			}
 		} else if pcaFit, ok := df.(*pcaFitFunc); ok {
-			pcas = append(pcas, pcaFit.dynpca)
+			pcaFits = append(pcaFits, pcaFit)
 		}
 	}
+	return pcaFits
+}
+func getPCAs(pcaFits []*pcaFitFunc) (pcas []*dynamicPCA) {
+	for _, f := range pcaFits {
+		pcas = append(pcas, f.dynpca)
+	}
 	return pcas
+}
+func compareHashes(hashes1, hashes2 map[uint64]struct{}) {
+	l1, l2 := len(hashes1), len(hashes2)
+	var common int
+	for hash := range hashes1 {
+		if _, ok := hashes2[hash]; ok {
+			common++
+		}
+	}
+	fmt.Printf("Seed hashes\tl1: %d\tl2: %d\tcommon: %d\n", l1, l2, common)
 }
 func exportHistos(pcas []*dynamicPCA, path string) {
 	if len(pcas) == 0 {
