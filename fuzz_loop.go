@@ -74,12 +74,10 @@ func analyzeExecs(executors []*executor) {
 	convCrit := computeConvergence(basisProj)
 	fmt.Printf("convCrit: %.3v\n", convCrit)
 	fmt.Printf("Basis projection:\n%.3v\n", mat.Formatted(basisProj))
-	//
-	selfMul := new(mat.Dense)
-	selfMul.Mul(basisProj, basisProj.T())
-	fmt.Printf("Self product:\n%.3v\n", mat.Formatted(selfMul))
 
 	compareHashes(pcaFits[0].hashes, pcaFits[1].hashes)
+	div := klDiv(pcas[0], pcas[1])
+	fmt.Printf("div = %+v\n", div)
 
 	exportHistos(pcas, "./histos.csv")
 }

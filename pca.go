@@ -294,6 +294,16 @@ func (dynpca *dynamicPCA) String() (str string) {
 	//
 	str += fmt.Sprintf("Covariance Matrix:\n%.3v", mat.Formatted(&m))
 
+	if false {
+		var logDet float64
+		for i := 0; i < basisSize; i++ {
+			logDet += math.Log(m.At(i, i))
+		}
+		logDet2, sign := mat.LogDet(&m)
+		str += fmt.Sprintf(
+			"\nlogDet, logDet2, sign: %.3v, %.3v, %.3v", logDet, logDet2, sign)
+	}
+
 	dynpca.recenter()
 	return str
 }
@@ -474,4 +484,56 @@ func printCompoStats(stats *basisStats, tm, fm *mat.Dense) string {
 
 	table.Render()
 	return b.String()
+}
+
+// *****************************************************************************
+// ***************************** Seed Distance *********************************
+
+func klDiv(p, q *dynamicPCA) (div float64) {
+	// 1. Project p covariance matric in q basis.
+	changeMat, pCovMat := new(mat.Dense), new(mat.Dense)
+	changeMat.Mul(p.basis.T(), q.basis)
+	//
+	pCovMat.Mul(changeMat.T(), p.covMat)
+	pCovMat.Mul(pCovMat, changeMat)
+
+	// 2. Compute the divergence
+	detP, _ := mat.LogDet(pCovMat)
+	detQ, _ := mat.LogDet(q.covMat)
+	dim, _ := pCovMat.Dims()
+	div = detQ - detP - float64(dim)
+	fmt.Printf("(step1) div: %.3v\n", div)
+	//
+	inverseQ, prod := new(mat.Dense), new(mat.Dense)
+	inverseQ.Inverse(q.covMat)
+	prod.Mul(inverseQ, pCovMat)
+	div += prod.Trace()
+	fmt.Printf("(step2) div: %.3v\n", div)
+	//
+	diff := matDiff(p.centers[:], q.centers[:])
+	diffProj, prod2, prod3 := new(mat.Dense), new(mat.Dense), new(mat.Dense)
+	diffProj.Mul(diff, q.basis)
+	prod2.Mul(diffProj, inverseQ)
+	prod3.Mul(prod2, diffProj.T())
+	div += prod3.At(0, 0)
+	fmt.Printf("(step3) centers dist: %.3v\n", prod3.At(0, 0))
+	fmt.Printf("Eucl' dist: %.3v\n", euclideanDist(p.centers[:], q.centers[:]))
+
+	div /= 2
+	return div
+}
+func matDiff(mup, muq []float64) *mat.Dense {
+	diff := mat.NewDense(1, mapSize, nil)
+	for i, tp := range mup {
+		tq := muq[i]
+		diff.Set(0, i, tq-tp)
+	}
+	return diff
+}
+func euclideanDist(mup, muq []float64) (dist float64) {
+	for i, tp := range mup {
+		diff := tp - muq[i]
+		dist += diff * diff
+	}
+	return math.Sqrt(dist)
 }
