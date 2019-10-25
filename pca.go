@@ -498,8 +498,9 @@ func klDiv(p, q *dynamicPCA) (div float64) {
 	pCovMat.Mul(pCovMat, changeMat)
 
 	// 2. Compute the divergence
-	detP, _ := mat.LogDet(pCovMat)
-	detQ, _ := mat.LogDet(q.covMat)
+	detP, sp := mat.LogDet(pCovMat)
+	detQ, sq := mat.LogDet(q.covMat)
+	detP, detQ = detP*sp, detQ*sq
 	dim, _ := pCovMat.Dims()
 	div = detQ - detP - float64(dim)
 	fmt.Printf("(step1) div: %.3v\n", div)
@@ -536,4 +537,69 @@ func euclideanDist(mup, muq []float64) (dist float64) {
 		dist += diff * diff
 	}
 	return math.Sqrt(dist)
+}
+
+// *****************************************************************************
+// ****************************** Merge Basis **********************************
+
+func mergeBasis(pcas []*dynamicPCA) (
+	glbCenters []float64, glbBasis *mat.Dense, varRatio float64) {
+
+	// ** 1. Compute centers **
+	glbCenters = make([]float64, mapSize)
+	pcaN := float64(len(pcas))
+	for i := range glbCenters {
+		for _, pca := range pcas {
+			glbCenters[i] += pca.centers[i]
+		}
+		glbCenters[i] /= pcaN
+	}
+
+	// ** 2. Prepare PCA **
+	var totDim int
+	var weights []float64
+	for _, pca := range pcas {
+		_, c := pca.basis.Dims()
+		totDim += c
+		n := float64(pca.sampleN)
+		for i := 0; i < c; i++ {
+			weights = append(weights, pca.covMat.At(i, i)/n)
+		}
+	}
+	//
+	var start, end int
+	m := mat.NewDense(totDim, mapSize, nil)
+	for _, pca := range pcas {
+		_, c := pca.basis.Dims()
+		end += c
+		w := m.Slice(start, end, 0, mapSize).(*mat.Dense)
+		w.Copy(pca.basis.T())
+		//
+		start = end
+	}
+
+	// ** 3. Do PCA **
+	var pc stat.PC
+	ok := pc.PrincipalComponents(m, weights)
+	if !ok {
+		log.Print("Couldn't do PCA on basis.")
+		return
+	}
+	//
+	vecs := new(mat.Dense)
+	pc.VectorsTo(vecs)
+	//
+	glbBasis = mat.DenseCopyOf(vecs.Slice(0, mapSize, 0, pcaInitDim))
+	//
+	var glbBVar, sumVars float64
+	vars := pc.VarsTo(nil)
+	for i, v := range vars {
+		sumVars += v
+		if i < pcaInitDim {
+			glbBVar += v
+		}
+	}
+	varRatio = glbBVar / sumVars
+
+	return glbCenters, glbBasis, varRatio
 }

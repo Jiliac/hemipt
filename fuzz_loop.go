@@ -11,7 +11,6 @@ import (
 	"sync"
 
 	"gonum.org/v1/gonum/mat"
-	"gonum.org/v1/gonum/stat"
 )
 
 func fuzzLoop(threads []*thread, seedInputs [][]byte) (executors []*executor) {
@@ -99,9 +98,10 @@ func analyzeExecs(executors []*executor, traces [][]byte) {
 	fmt.Printf("convCrit: %.3v\n", convCrit)
 	fmt.Printf("Basis projection:\n%.3v\n", mat.Formatted(basisProj))
 
-	compareHashes(pcaFits[0].hashes, pcaFits[1].hashes)
-	div := klDiv(pcas[0], pcas[1])
-	fmt.Printf("div = %+v\n", div)
+	//compareHashes(pcaFits[0].hashes, pcaFits[1].hashes)
+	fmt.Printf("div(s1, s2):\t%.3v\n\n", klDiv(pcas[0], pcas[1]))
+	fmt.Printf("div(s2, s1):\t%.3v\n\n", klDiv(pcas[1], pcas[0]))
+	seedDists(pcas, traces)
 
 	exportHistos(pcas, "./histos.csv")
 }
@@ -137,47 +137,8 @@ func compareHashes(hashes1, hashes2 map[uint64]struct{}) {
 	fmt.Printf("Seed hashes\tl1: %d\tl2: %d\tcommon: %d\n", l1, l2, common)
 }
 func seedDists(pcas []*dynamicPCA, traces [][]byte) {
-	var totDim int
-	var weights []float64
-	var totW float64
-	for _, pca := range pcas {
-		_, c := pca.basis.Dims()
-		totDim += c
-		for i := 0; i < c; i++ {
-			w := pca.covMat.At(i, i)
-			weights = append(weights, w)
-			totW += w
-		}
-	}
-	avgW := totW / float64(len(weights))
-	for i := range weights {
-		weights[i] /= avgW
-	}
-
-	var start, end int
-	m := mat.NewDense(totDim, mapSize, nil)
-	for _, pca := range pcas {
-		_, c := pca.basis.Dims()
-		end += c
-		w := m.Slice(start, end, 0, mapSize).(*mat.Dense)
-		w.Copy(pca.basis.T())
-		//
-		start = end
-	}
-
-	var pc stat.PC
-	ok := pc.PrincipalComponents(m, weights)
-	if !ok {
-		log.Print("Couldn't do PCA on basis.")
-		return
-	}
-	//
-	vecs := new(mat.Dense)
-	pc.VectorsTo(vecs)
-	r, c := vecs.Dims()
-	fmt.Printf("Eigenvectors dim: %d, %d.\n", r, c)
-	vars := pc.VarsTo(nil)
-	fmt.Printf("vars: %.3v\n", vars)
+	_, _, varRatio := mergeBasis(pcas)
+	fmt.Printf("varRatio = %.3v\n", varRatio)
 }
 
 func exportHistos(pcas []*dynamicPCA, path string) {
