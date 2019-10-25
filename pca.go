@@ -543,7 +543,7 @@ func euclideanDist(mup, muq []float64) (dist float64) {
 // ****************************** Merge Basis **********************************
 
 func mergeBasis(pcas []*dynamicPCA) (
-	glbCenters []float64, glbBasis *mat.Dense, varRatio float64) {
+	glbCenters, vars []float64, glbBasis *mat.Dense, varRatio float64) {
 
 	// ** 1. Compute centers **
 	glbCenters = make([]float64, mapSize)
@@ -557,13 +557,16 @@ func mergeBasis(pcas []*dynamicPCA) (
 
 	// ** 2. Prepare PCA **
 	var totDim int
+	var wSum float64
 	var weights []float64
 	for _, pca := range pcas {
 		_, c := pca.basis.Dims()
 		totDim += c
 		n := float64(pca.sampleN)
 		for i := 0; i < c; i++ {
-			weights = append(weights, pca.covMat.At(i, i)/n)
+			w := pca.covMat.At(i, i) / n
+			wSum += w
+			weights = append(weights, w)
 		}
 	}
 	//
@@ -589,17 +592,31 @@ func mergeBasis(pcas []*dynamicPCA) (
 	vecs := new(mat.Dense)
 	pc.VectorsTo(vecs)
 	//
-	glbBasis = mat.DenseCopyOf(vecs.Slice(0, mapSize, 0, pcaInitDim))
-	//
 	var glbBVar, sumVars float64
-	vars := pc.VarsTo(nil)
-	for i, v := range vars {
+	pcVars := pc.VarsTo(nil)
+	for i, v := range pcVars {
 		sumVars += v
 		if i < pcaInitDim {
 			glbBVar += v
 		}
 	}
 	varRatio = glbBVar / sumVars
+	scale := wSum / sumVars
+	vars = pcVars[:pcaInitDim]
+	for i := range vars {
+		vars[i] *= scale
+	}
+	//
+	//vecs.Scale(scale, vecs)
+	glbBasis = mat.DenseCopyOf(vecs.Slice(0, mapSize, 0, pcaInitDim))
 
-	return glbCenters, glbBasis, varRatio
+	return glbCenters, vars, glbBasis, varRatio
+}
+
+func mahaDist(proj1, proj2, vars []float64) (dist float64) {
+	for i, p1 := range proj1 {
+		diff := p1 - proj2[i]
+		dist += diff * diff / vars[i]
+	}
+	return math.Sqrt(dist)
 }

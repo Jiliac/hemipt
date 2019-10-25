@@ -137,8 +137,35 @@ func compareHashes(hashes1, hashes2 map[uint64]struct{}) {
 	fmt.Printf("Seed hashes\tl1: %d\tl2: %d\tcommon: %d\n", l1, l2, common)
 }
 func seedDists(pcas []*dynamicPCA, traces [][]byte) {
-	_, _, varRatio := mergeBasis(pcas)
+	centers, vars, glbBasis, varRatio := mergeBasis(pcas)
 	fmt.Printf("varRatio = %.3v\n", varRatio)
+
+	var traceMats []*mat.Dense
+	for _, trace := range traces {
+		mat := mat.NewDense(1, mapSize, nil)
+		for i, tr := range trace {
+			v := logVals[tr]
+			v -= centers[i]
+			mat.Set(0, i, v)
+		}
+		traceMats = append(traceMats, mat)
+	}
+
+	var projs [][]float64
+	for _, m := range traceMats {
+		proj := new(mat.Dense)
+		proj.Mul(m, glbBasis)
+		projs = append(projs, proj.RawRowView(0))
+	}
+
+	for i, proj := range projs {
+		fmt.Printf("proj[%d]:\t%.3v\n", i, proj)
+	}
+
+	orgDist := euclideanDist(traceMats[0].RawRowView(0), traceMats[1].RawRowView(0))
+	eDist := euclideanDist(projs[0], projs[1])
+	mDist := mahaDist(projs[0], projs[1], vars)
+	fmt.Printf("orgDist, eDist, mDist = %.3v, %.3v, %.3v\n", orgDist, eDist, mDist)
 }
 
 func exportHistos(pcas []*dynamicPCA, path string) {
