@@ -42,7 +42,8 @@ func main() {
 	//seedExecTest(threads, seedInputs)
 
 	executors := fuzzLoop(threads, seedInputs)
-	analyzeExecs(executors)
+	traces := getSeedTrace(threads, seedInputs)
+	analyzeExecs(executors, traces)
 
 	for _, t := range threads {
 		t.clean()

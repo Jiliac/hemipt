@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/stat"
 )
 
 func fuzzLoop(threads []*thread, seedInputs [][]byte) (executors []*executor) {
@@ -62,8 +63,31 @@ func fuzzLoop(threads []*thread, seedInputs [][]byte) (executors []*executor) {
 	return executors
 }
 
+func getSeedTrace(threads []*thread, seedInputs [][]byte) (traces [][]byte) {
+	traces = make([][]byte, len(seedInputs))
+	fitChan := make(chan runMeta, 1)
+	t := threads[0]
+
+	for i, seedI := range seedInputs {
+		e := &executor{
+			ig:             seedCopier(seedI),
+			discoveryFit:   trueFitFunc{},
+			securityPolicy: falseFitFunc{},
+			fitChan:        fitChan,
+			crashChan:      devNullFitChan,
+		}
+
+		t.execChan <- e
+		<-t.endChan
+		runInfo := <-fitChan
+		traces[i] = runInfo.trace
+	}
+
+	return traces
+}
+
 // Debug/test for now
-func analyzeExecs(executors []*executor) {
+func analyzeExecs(executors []*executor, traces [][]byte) {
 	fmt.Println("")
 	pcaFits := getPCAFits(executors)
 	pcas := getPCAs(pcaFits)
@@ -112,6 +136,50 @@ func compareHashes(hashes1, hashes2 map[uint64]struct{}) {
 	}
 	fmt.Printf("Seed hashes\tl1: %d\tl2: %d\tcommon: %d\n", l1, l2, common)
 }
+func seedDists(pcas []*dynamicPCA, traces [][]byte) {
+	var totDim int
+	var weights []float64
+	var totW float64
+	for _, pca := range pcas {
+		_, c := pca.basis.Dims()
+		totDim += c
+		for i := 0; i < c; i++ {
+			w := pca.covMat.At(i, i)
+			weights = append(weights, w)
+			totW += w
+		}
+	}
+	avgW := totW / float64(len(weights))
+	for i := range weights {
+		weights[i] /= avgW
+	}
+
+	var start, end int
+	m := mat.NewDense(totDim, mapSize, nil)
+	for _, pca := range pcas {
+		_, c := pca.basis.Dims()
+		end += c
+		w := m.Slice(start, end, 0, mapSize).(*mat.Dense)
+		w.Copy(pca.basis.T())
+		//
+		start = end
+	}
+
+	var pc stat.PC
+	ok := pc.PrincipalComponents(m, weights)
+	if !ok {
+		log.Print("Couldn't do PCA on basis.")
+		return
+	}
+	//
+	vecs := new(mat.Dense)
+	pc.VectorsTo(vecs)
+	r, c := vecs.Dims()
+	fmt.Printf("Eigenvectors dim: %d, %d.\n", r, c)
+	vars := pc.VarsTo(nil)
+	fmt.Printf("vars: %.3v\n", vars)
+}
+
 func exportHistos(pcas []*dynamicPCA, path string) {
 	if len(pcas) == 0 {
 		return
