@@ -503,13 +503,13 @@ func klDiv(p, q *dynamicPCA) (div float64) {
 	detP, detQ = detP*sp, detQ*sq
 	dim, _ := pCovMat.Dims()
 	div = detQ - detP - float64(dim)
-	fmt.Printf("(step1) div: %.3v\n", div)
+	fmt.Printf("(step1) div: %.3v\tdetP, detQ: %.3v, %.3v\n", div, detP, detQ)
 	//
 	inverseQ, prod := new(mat.Dense), new(mat.Dense)
 	inverseQ.Inverse(q.covMat)
 	prod.Mul(inverseQ, pCovMat)
 	div += prod.Trace()
-	fmt.Printf("(step2) div: %.3v\n", div)
+	fmt.Printf("(step2) div: %.3v\tTrace: %.3v\n", div, prod.Trace())
 	//
 	diff := matDiff(p.centers[:], q.centers[:])
 	diffProj, prod2, prod3 := new(mat.Dense), new(mat.Dense), new(mat.Dense)
@@ -555,7 +555,6 @@ func mergeBasis(pcas []*dynamicPCA) (glbCenters, vars []float64, glbBasis *mat.D
 
 	// ** 2. Prepare PCA **
 	var totDim int
-	var wSum float64
 	var weights []float64
 	for _, pca := range pcas {
 		_, c := pca.basis.Dims()
@@ -563,7 +562,6 @@ func mergeBasis(pcas []*dynamicPCA) (glbCenters, vars []float64, glbBasis *mat.D
 		n := float64(pca.sampleN)
 		for i := 0; i < c; i++ {
 			w := pca.covMat.At(i, i) / n
-			wSum += w
 			weights = append(weights, w)
 		}
 	}
@@ -590,28 +588,37 @@ func mergeBasis(pcas []*dynamicPCA) (glbCenters, vars []float64, glbBasis *mat.D
 	vecs := new(mat.Dense)
 	pc.VectorsTo(vecs)
 	//
+	glbBasis = mat.DenseCopyOf(vecs.Slice(0, mapSize, 0, pcaInitDim))
+	//
+	vars = make([]float64, pcaInitDim)
+	for _, pca := range pcas {
+		changeBasisM, newCovMat := new(mat.Dense), new(mat.Dense)
+		changeBasisM.Mul(pca.basis.T(), glbBasis)
+		newCovMat.Mul(changeBasisM.T(), pca.covMat)
+		newCovMat.Mul(newCovMat, changeBasisM)
+		for i := range vars {
+			vars[i] += newCovMat.At(i, i) / float64(pca.sampleN)
+		}
+	}
+	for i := range vars {
+		vars[i] /= float64(len(pcas))
+	}
+	fmt.Printf("vars: %.3v\n", vars)
+
+	// Trash
 	var glbBVar, sumVars float64
 	pcVars := pc.VarsTo(nil)
 	for i, v := range pcVars {
-		sumVars += v
 		if i < pcaInitDim {
 			glbBVar += v
 		}
+		sumVars += v
 	}
-	varRatio = glbBVar / sumVars
-	scale := wSum / sumVars
-	vars = pcVars[:pcaInitDim]
-	fmt.Printf("wSum, sumVars = %.3v, %.3v\n", wSum, sumVars)
-	fmt.Printf("vars: %.3v\n", vars)
-	for i := range vars {
-		vars[i] *= scale
-	}
-	fmt.Printf("vars: %.3v\n", vars)
-	//
-	//vecs.Scale(scale, vecs)
-	glbBasis = mat.DenseCopyOf(vecs.Slice(0, mapSize, 0, pcaInitDim))
+	varRatio := glbBVar / sumVars
+	fmt.Printf("varRatio = %.3v\n", varRatio)
+	fmt.Printf("vars: %.3v\n", pcVars[:pcaInitDim])
 
-	return glbCenters, vars, glbBasis, varRatio
+	return glbCenters, vars, glbBasis
 }
 
 func mahaDist(proj1, proj2, vars []float64) (dist float64) {

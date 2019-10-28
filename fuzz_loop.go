@@ -99,6 +99,7 @@ func analyzeExecs(executors []*executor, traces [][]byte) {
 	fmt.Printf("Basis projection:\n%.3v\n", mat.Formatted(basisProj))
 
 	//compareHashes(pcaFits[0].hashes, pcaFits[1].hashes)
+	fmt.Printf("div(s1, s1):\t%.3v\n\n", klDiv(pcas[0], pcas[0]))
 	fmt.Printf("div(s1, s2):\t%.3v\n\n", klDiv(pcas[0], pcas[1]))
 	fmt.Printf("div(s2, s1):\t%.3v\n\n", klDiv(pcas[1], pcas[0]))
 	seedDists(pcas, traces)
