@@ -502,14 +502,15 @@ func klDiv(p, q *dynamicPCA) (div float64) {
 	detQ, sq := mat.LogDet(q.covMat)
 	detP, detQ = detP*sp, detQ*sq
 	dim, _ := pCovMat.Dims()
-	div = detQ - detP - float64(dim)
+	div = detQ - detP
 	fmt.Printf("(step1) div: %.3v\tdetP, detQ: %.3v, %.3v\n", div, detP, detQ)
 	//
 	inverseQ, prod := new(mat.Dense), new(mat.Dense)
 	inverseQ.Inverse(q.covMat)
 	prod.Mul(inverseQ, pCovMat)
-	div += prod.Trace()
-	fmt.Printf("(step2) div: %.3v\tTrace: %.3v\n", div, prod.Trace())
+	tr := prod.Trace() - float64(dim)
+	div += tr
+	fmt.Printf("(step2) div: %.3v\tTrace-D: %.3v\n", div, tr)
 	//
 	diff := matDiff(p.centers[:], q.centers[:])
 	diffProj, prod2, prod3 := new(mat.Dense), new(mat.Dense), new(mat.Dense)
@@ -518,7 +519,8 @@ func klDiv(p, q *dynamicPCA) (div float64) {
 	prod3.Mul(prod2, diffProj.T())
 	div += prod3.At(0, 0)
 	fmt.Printf("(step3) centers dist: %.3v\n", prod3.At(0, 0))
-	fmt.Printf("Eucl' dist: %.3v\n", euclideanDist(p.centers[:], q.centers[:]))
+	fmt.Printf("Centers Eucledian distance: %.3v\n",
+		euclideanDist(p.centers[:], q.centers[:]))
 
 	div /= 2
 	return div
@@ -603,20 +605,6 @@ func mergeBasis(pcas []*dynamicPCA) (glbCenters, vars []float64, glbBasis *mat.D
 	for i := range vars {
 		vars[i] /= float64(len(pcas))
 	}
-	fmt.Printf("vars: %.3v\n", vars)
-
-	// Trash
-	var glbBVar, sumVars float64
-	pcVars := pc.VarsTo(nil)
-	for i, v := range pcVars {
-		if i < pcaInitDim {
-			glbBVar += v
-		}
-		sumVars += v
-	}
-	varRatio := glbBVar / sumVars
-	fmt.Printf("varRatio = %.3v\n", varRatio)
-	fmt.Printf("vars: %.3v\n", pcVars[:pcaInitDim])
 
 	return glbCenters, vars, glbBasis
 }
