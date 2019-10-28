@@ -542,9 +542,7 @@ func euclideanDist(mup, muq []float64) (dist float64) {
 // *****************************************************************************
 // ****************************** Merge Basis **********************************
 
-func mergeBasis(pcas []*dynamicPCA) (
-	glbCenters, vars []float64, glbBasis *mat.Dense, varRatio float64) {
-
+func mergeBasis(pcas []*dynamicPCA) (glbCenters, vars []float64, glbBasis *mat.Dense) {
 	// ** 1. Compute centers **
 	glbCenters = make([]float64, mapSize)
 	pcaN := float64(len(pcas))
@@ -603,9 +601,12 @@ func mergeBasis(pcas []*dynamicPCA) (
 	varRatio = glbBVar / sumVars
 	scale := wSum / sumVars
 	vars = pcVars[:pcaInitDim]
+	fmt.Printf("wSum, sumVars = %.3v, %.3v\n", wSum, sumVars)
+	fmt.Printf("vars: %.3v\n", vars)
 	for i := range vars {
 		vars[i] *= scale
 	}
+	fmt.Printf("vars: %.3v\n", vars)
 	//
 	//vecs.Scale(scale, vecs)
 	glbBasis = mat.DenseCopyOf(vecs.Slice(0, mapSize, 0, pcaInitDim))

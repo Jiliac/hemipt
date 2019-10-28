@@ -137,18 +137,24 @@ func compareHashes(hashes1, hashes2 map[uint64]struct{}) {
 	fmt.Printf("Seed hashes\tl1: %d\tl2: %d\tcommon: %d\n", l1, l2, common)
 }
 func seedDists(pcas []*dynamicPCA, traces [][]byte) {
-	centers, vars, glbBasis, varRatio := mergeBasis(pcas)
-	fmt.Printf("varRatio = %.3v\n", varRatio)
+	centers, vars, glbBasis := mergeBasis(pcas)
 
 	var traceMats []*mat.Dense
 	for _, trace := range traces {
-		mat := mat.NewDense(1, mapSize, nil)
+		m := mat.NewDense(1, mapSize, nil)
 		for i, tr := range trace {
 			v := logVals[tr]
 			v -= centers[i]
-			mat.Set(0, i, v)
+			m.Set(0, i, v)
 		}
-		traceMats = append(traceMats, mat)
+		traceMats = append(traceMats, m)
+	}
+	for _, pca := range pcas {
+		m := mat.NewDense(1, mapSize, nil)
+		for i, v := range pca.centers[:] {
+			m.Set(0, i, v-centers[i])
+		}
+		traceMats = append(traceMats, m)
 	}
 
 	var projs [][]float64
@@ -162,9 +168,9 @@ func seedDists(pcas []*dynamicPCA, traces [][]byte) {
 		fmt.Printf("proj[%d]:\t%.3v\n", i, proj)
 	}
 
-	orgDist := euclideanDist(traceMats[0].RawRowView(0), traceMats[1].RawRowView(0))
-	eDist := euclideanDist(projs[0], projs[1])
-	mDist := mahaDist(projs[0], projs[1], vars)
+	orgDist := euclideanDist(traceMats[2].RawRowView(0), traceMats[3].RawRowView(0))
+	eDist := euclideanDist(projs[2], projs[3])
+	mDist := mahaDist(projs[2], projs[3], vars)
 	fmt.Printf("orgDist, eDist, mDist = %.3v, %.3v, %.3v\n", orgDist, eDist, mDist)
 }
 
