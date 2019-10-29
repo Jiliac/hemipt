@@ -498,7 +498,7 @@ func klDiv(p, q *dynamicPCA) (div float64) {
 	pCovMat.Mul(pCovMat, changeMat)
 
 	// 2. Compute the divergence
-	detP, sp := mat.LogDet(pCovMat)
+	detP, sp := mat.LogDet(p.covMat)
 	detQ, sq := mat.LogDet(q.covMat)
 	detP, detQ = detP*sp, detQ*sq
 	dim, _ := pCovMat.Dims()
