@@ -9,10 +9,10 @@ import (
 // *****************************************************************************
 // **************************** DevNull Channel ********************************
 
-var devNullFitChan chan runMeta
+var devNullFitChan chan runT
 
 func init() {
-	devNullFitChan = make(chan runMeta)
+	devNullFitChan = make(chan runT)
 	go func() {
 		for _ = range devNullFitChan {
 		}
@@ -28,19 +28,15 @@ type globalFitness struct {
 	ticker *time.Ticker
 }
 
-func makeGlbFitness() chan runMeta {
-	fitChan := make(chan runMeta, 1000)
-
+func makeGlbFitness(fitChan chan runT) {
 	glbFit := globalFitness{
 		brCovFitFunc: newBrCovFitFunc(),
 		ticker:       time.NewTicker(time.Second),
 	}
 	go glbFit.listen(fitChan)
-
-	return fitChan
 }
 
-func (glbFit globalFitness) listen(fitChan chan runMeta) {
+func (glbFit globalFitness) listen(fitChan chan runT) {
 	_, sigChan := intChans.add() // Get notified when interrupted.
 
 	fuzzContinue := true

@@ -30,7 +30,9 @@ var (
 	helloChildS = helloChildA[:]
 )
 
-type runMeta struct {
+type runT struct {
+	input []byte
+
 	sig     syscall.Signal
 	status  syscall.WaitStatus
 	crashed bool
@@ -40,7 +42,7 @@ type runMeta struct {
 	hash  uint64
 }
 
-func (put *aflPutT) run(testCase []byte) (runInfo runMeta, err error) {
+func (put *aflPutT) run(testCase []byte) (runInfo runT, err error) {
 	zeroShm(put.trace)
 
 	if len(testCase) > 0 {
@@ -107,6 +109,7 @@ func (put *aflPutT) run(testCase []byte) (runInfo runMeta, err error) {
 		runInfo.crashed = true
 	}
 
+	runInfo.input = testCase
 	runInfo.hash = hashTrBits(put.trace)
 	return runInfo, err
 }

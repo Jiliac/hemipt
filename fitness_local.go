@@ -11,7 +11,7 @@ import (
 // which CPU it is executed on).
 // These interfaces are _local_.
 type fitnessFunc interface {
-	isFit(runInfo runMeta) bool
+	isFit(runInfo runT) bool
 	String() string
 }
 
@@ -20,7 +20,7 @@ type fitnessFunc interface {
 
 type fitnessMultiplexer []fitnessFunc
 
-func (fm fitnessMultiplexer) isFit(runInfo runMeta) (fit bool) {
+func (fm fitnessMultiplexer) isFit(runInfo runT) (fit bool) {
 	fits := make([]bool, len(fm))
 	for i, ff := range fm {
 		fits[i] = ff.isFit(runInfo)
@@ -46,10 +46,10 @@ func (fm fitnessMultiplexer) String() (str string) {
 type falseFitFunc struct{}
 type trueFitFunc struct{}
 
-func (falseFitFunc) isFit(runMeta) bool { return false }
-func (falseFitFunc) String() string     { return "always false" }
-func (trueFitFunc) isFit(runMeta) bool  { return true }
-func (trueFitFunc) String() string      { return "always true" }
+func (falseFitFunc) isFit(runT) bool { return false }
+func (falseFitFunc) String() string  { return "always false" }
+func (trueFitFunc) isFit(runT) bool  { return true }
+func (trueFitFunc) String() string   { return "always true" }
 
 // *****************************************************************************
 // **************************** Branch Coverage ********************************
@@ -68,7 +68,7 @@ func newBrCovFitFunc() *brCovFitFunc {
 	}
 }
 
-func (fitFunc *brCovFitFunc) isFit(runInfo runMeta) (fit bool) {
+func (fitFunc *brCovFitFunc) isFit(runInfo runT) (fit bool) {
 	fitFunc.hashes[runInfo.hash] = struct{}{}
 	fitFunc.execN++
 
@@ -127,7 +127,7 @@ func newPCAFitFunc() *pcaFitFunc {
 	return pff
 }
 
-func (pff *pcaFitFunc) isFit(runInfo runMeta) (fit bool) {
+func (pff *pcaFitFunc) isFit(runInfo runT) (fit bool) {
 	select {
 	case _ = <-pff.initTimer.C:
 		pff.endInit()

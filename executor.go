@@ -89,7 +89,7 @@ type executor struct {
 	discoveryFit   fitnessFunc
 	securityPolicy fitnessFunc
 
-	fitChan, crashChan chan<- runMeta
+	fitChan, crashChan chan<- runT
 	oneExec            bool
 }
 

@@ -21,7 +21,8 @@ func fuzzLoop(threads []*thread, seedInputs [][]byte) (executors []*executor) {
 	}
 
 	var wg sync.WaitGroup
-	fitChan := makeGlbFitness()
+	fitChan := make(chan runT, 1000)
+	makeGlbFitness(fitChan)
 
 	for i, seedI := range seedInputs {
 		discoveryFit := fitnessMultiplexer{newBrCovFitFunc(), newPCAFitFunc()}
@@ -64,7 +65,7 @@ func fuzzLoop(threads []*thread, seedInputs [][]byte) (executors []*executor) {
 
 func getSeedTrace(threads []*thread, seedInputs [][]byte) (traces [][]byte) {
 	traces = make([][]byte, len(seedInputs))
-	fitChan := make(chan runMeta, 1)
+	fitChan := make(chan runT, 1)
 	t := threads[0]
 
 	for i, seedI := range seedInputs {
