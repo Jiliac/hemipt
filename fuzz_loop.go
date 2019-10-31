@@ -108,6 +108,9 @@ func compareHashes(hashes1, hashes2 map[uint64]struct{}) {
 }
 func seedDists(pcas []*dynamicPCA, traces [][]byte) {
 	centers, vars, glbBasis := mergeBasis(pcas)
+	if glbBasis == nil { // Means there was an error.
+		return
+	}
 	fmt.Printf("vars: %.3v\n", vars)
 
 	var traceMats []*mat.Dense

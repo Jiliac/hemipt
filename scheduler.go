@@ -67,6 +67,7 @@ func (sched *scheduler) schedule(fitChan chan runT) {
 
 		case t := <-sched.threadChan:
 			sort.Slice(seeds, func(i, j int) bool {
+				// Could be optimized ofc. But not necessary imo.
 				return seeds[i].execN > seeds[j].execN
 			})
 			seed := seeds[len(seeds)-1]
@@ -77,8 +78,11 @@ func (sched *scheduler) schedule(fitChan chan runT) {
 			}
 			seed.execN++
 
-			t.execChan <- seed.exec
-			go func(t *thread) { <-t.endChan; sched.threadChan <- t }(t)
+			go func(t *thread, e *executor) {
+				t.execChan <- e
+				<-t.endChan
+				sched.threadChan <- t
+			}(t, seed.exec)
 		}
 	}
 

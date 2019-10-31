@@ -108,14 +108,12 @@ func newDynPCA(queue [][]byte) (ok bool, dynpca *dynamicPCA) {
 
 func (dynpca *dynamicPCA) newSample(trace []byte) {
 	if dynpca.phase2 && time.Now().Sub(dynpca.startT) > phase2Dur {
-		fmt.Println("PHASE 3")
 		dynpca.recenter()
 		dynpca.recenterT = time.Now()
 		dynpca.phase2, dynpca.phase3 = false, true
 		//
 	} else if dynpca.phase3 && time.Now().Sub(dynpca.recenterT) > phase3Dur {
-		fmt.Println("PHASE 4")
-		// @TODO: rotate covmat and start adding new axis
+		// @TODO: start adding new axis (Gram-Schmidt)?
 		ok := dynpca.rotate()
 		if ok {
 			dynpca.phase3, dynpca.phase4 = false, true
@@ -160,7 +158,6 @@ func (dynpca *dynamicPCA) recenter() {
 		dynpca.sums[i] = c * float64(newSampN)
 	}
 	diff = math.Sqrt(diff)
-	fmt.Printf("Centering difference: %.3v\n", diff)
 
 	m := new(mat.Dense)
 	ratio := float64(newSampN) / n
@@ -192,14 +189,10 @@ func (dynpca *dynamicPCA) rotate() (ok bool) {
 
 	// Test print
 	convCrit := computeConvergence(eVecs)
-	fmt.Printf("convCrit: %.3v\n", convCrit)
-	fmt.Printf("eVals: %.3v\n", eVals)
-	fmt.Printf("Eigen vectors:\n%.3v\n", mat.Formatted(eVecs))
 	m := new(mat.Dense)
 	m.Scale(1/float64(dynpca.sampleN), dynpca.covMat)
 	m.Mul(eVecs.T(), m)
 	m.Mul(m, eVecs)
-	fmt.Printf("Rotated covariance matrix:\n%.3v\n", mat.Formatted(m))
 
 	// ** 3. Apply decomposition **
 	if convCrit > convCritFloor {
@@ -559,6 +552,9 @@ func mergeBasis(pcas []*dynamicPCA) (glbCenters, vars []float64, glbBasis *mat.D
 	var totDim int
 	var weights []float64
 	for _, pca := range pcas {
+		if !pca.phase4 {
+			continue
+		}
 		_, c := pca.basis.Dims()
 		totDim += c
 		n := float64(pca.sampleN)
@@ -571,6 +567,9 @@ func mergeBasis(pcas []*dynamicPCA) (glbCenters, vars []float64, glbBasis *mat.D
 	var start, end int
 	m := mat.NewDense(totDim, mapSize, nil)
 	for _, pca := range pcas {
+		if !pca.phase4 {
+			continue
+		}
 		_, c := pca.basis.Dims()
 		end += c
 		w := m.Slice(start, end, 0, mapSize).(*mat.Dense)
