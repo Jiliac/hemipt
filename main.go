@@ -38,10 +38,10 @@ func main() {
 		return
 	}
 
-	// ** Test **
-	//seedExecTest(threads, seedInputs)
+	//seedExecTest(threads, seedInputs) // Old test
 
 	executors := fuzzLoop(threads, seedInputs)
+	// ** Test **
 	traces := getSeedTrace(threads, seedInputs)
 	analyzeExecs(executors, traces)
 

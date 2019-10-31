@@ -51,7 +51,7 @@ func fuzzLoop(threads []*thread, seedInputs [][]byte) (executors []*executor) {
 				}
 			}
 
-			fmt.Printf("Local fitness: %v\n", e.discoveryFit)
+			//fmt.Printf("Local fitness: %v\n", e.discoveryFit)
 
 			intChans.del(key)
 			wg.Done()
@@ -74,6 +74,7 @@ func getSeedTrace(threads []*thread, seedInputs [][]byte) (traces [][]byte) {
 			securityPolicy: falseFitFunc{},
 			fitChan:        fitChan,
 			crashChan:      devNullFitChan,
+			oneExec:        true,
 		}
 
 		t.execChan <- e
@@ -85,7 +86,9 @@ func getSeedTrace(threads []*thread, seedInputs [][]byte) (traces [][]byte) {
 	return traces
 }
 
-// Debug/test for now
+// *****************************************************************************
+// ******************************* Debug/Test **********************************
+
 func analyzeExecs(executors []*executor, traces [][]byte) {
 	fmt.Println("")
 	pcaFits := getPCAFits(executors)

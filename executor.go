@@ -3,10 +3,16 @@ package main
 import (
 	"log"
 
+	"os"
 	"runtime"
 	"sync"
 	"time"
 )
+
+const roundTime = 5 * time.Second
+
+// *****************************************************************************
+// ********************************* Thread ************************************
 
 type thread struct {
 	put *aflPutT
@@ -37,8 +43,13 @@ func startThread(binPath string, cliArgs []string) (t *thread, ok bool) {
 			return
 		}
 
+		_, sigChan := intChans.add() // Get notified when interrupted.
 		for e := range t.execChan {
-			e.execute(t.put)
+			if e.oneExec {
+				e.executeOne(t.put)
+			} else {
+				e.executeLoop(t.put, sigChan)
+			}
 			t.endChan <- struct{}{}
 		}
 	}()
@@ -79,9 +90,10 @@ type executor struct {
 	securityPolicy fitnessFunc
 
 	fitChan, crashChan chan<- runMeta
+	oneExec            bool
 }
 
-func (e executor) execute(put *aflPutT) {
+func (e executor) executeOne(put *aflPutT) {
 	testCase := e.ig.generate()
 
 	runInfo, _ := put.run(testCase)
@@ -97,6 +109,39 @@ func (e executor) execute(put *aflPutT) {
 		}
 		if isCrash {
 			e.crashChan <- runInfo
+		}
+	}
+}
+func (e executor) executeLoop(put *aflPutT, sigChan chan os.Signal) {
+	timer := time.NewTimer(roundTime)
+	fuzzContinue := true
+	for fuzzContinue {
+		select {
+		case _ = <-sigChan:
+			fuzzContinue = false
+			break
+		case _ = <-timer.C:
+			fuzzContinue = false
+			break
+
+		default:
+			testCase := e.ig.generate()
+
+			runInfo, _ := put.run(testCase)
+
+			runInfo.trace = make([]byte, len(put.trace))
+			copy(runInfo.trace, put.trace)
+			dF := e.discoveryFit.isFit(runInfo)
+			isCrash := e.securityPolicy.isFit(runInfo)
+			//
+			if dF || isCrash {
+				if dF {
+					e.fitChan <- runInfo
+				}
+				if isCrash {
+					e.crashChan <- runInfo
+				}
+			}
 		}
 	}
 }
