@@ -17,14 +17,17 @@ type scheduler struct {
 
 	// Once their executions are finished, empty thread are sent here.
 	threadChan chan *thread
+
+	executorsChan chan []*executor
 }
 
 func newScheduler(threads []*thread, seedInputs [][]byte, fitChan chan runT) (
 	sched *scheduler) {
 
 	sched = &scheduler{
-		newSeedChan: make(chan seedT),
-		threadChan:  make(chan *thread),
+		newSeedChan:   make(chan seedT),
+		threadChan:    make(chan *thread),
+		executorsChan: make(chan []*executor),
 	}
 
 	go func() {
@@ -54,10 +57,8 @@ func (sched *scheduler) schedule(fitChan chan runT) {
 			break
 
 		case newSeed := <-sched.newSeedChan:
-			discoveryFit := fitnessMultiplexer{newBrCovFitFunc(), newPCAFitFunc()}
 			newSeed.exec = &executor{
 				ig:             makeRatioMutator(newSeed.input, 1.0/100),
-				discoveryFit:   discoveryFit,
 				securityPolicy: falseFitFunc{},
 				fitChan:        fitChan,
 				crashChan:      devNullFitChan,
@@ -69,10 +70,21 @@ func (sched *scheduler) schedule(fitChan chan runT) {
 				return seeds[i].execN > seeds[j].execN
 			})
 			seed := seeds[len(seeds)-1]
+
+			if seed.execN == 0 {
+				seed.exec.discoveryFit = fitnessMultiplexer{
+					newBrCovFitFunc(), newPCAFitFunc()}
+			}
 			seed.execN++
 
 			t.execChan <- seed.exec
 			go func(t *thread) { <-t.endChan; sched.threadChan <- t }(t)
 		}
 	}
+
+	var executors []*executor
+	for _, seed := range seeds {
+		executors = append(executors, seed.exec)
+	}
+	sched.executorsChan <- executors
 }

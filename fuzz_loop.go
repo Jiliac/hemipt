@@ -20,46 +20,11 @@ func fuzzLoop(threads []*thread, seedInputs [][]byte) (executors []*executor) {
 		return
 	}
 
-	var wg sync.WaitGroup
 	fitChan := make(chan runT, 1000)
-	makeGlbFitness(fitChan)
+	sched := newScheduler(threads, seedInputs, fitChan)
+	makeGlbFitness(fitChan, sched.newSeedChan)
 
-	for i, seedI := range seedInputs {
-		discoveryFit := fitnessMultiplexer{newBrCovFitFunc(), newPCAFitFunc()}
-		e := &executor{
-			ig:             makeRatioMutator(seedI, 1.0/100),
-			discoveryFit:   discoveryFit,
-			securityPolicy: falseFitFunc{},
-			fitChan:        fitChan,
-			crashChan:      devNullFitChan,
-		}
-		executors = append(executors, e)
-
-		wg.Add(1)
-		go func(t *thread, e *executor) {
-			fuzzContinue := true
-			key, sigChan := intChans.add()
-
-			for fuzzContinue {
-				select {
-				case _ = <-sigChan:
-					fuzzContinue = false
-					break
-
-				default:
-					t.execChan <- e
-					<-t.endChan
-				}
-			}
-
-			//fmt.Printf("Local fitness: %v\n", e.discoveryFit)
-
-			intChans.del(key)
-			wg.Done()
-		}(threads[i], e)
-	}
-
-	wg.Wait()
+	executors = <-sched.executorsChan
 	return executors
 }
 

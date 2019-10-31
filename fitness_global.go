@@ -28,15 +28,15 @@ type globalFitness struct {
 	ticker *time.Ticker
 }
 
-func makeGlbFitness(fitChan chan runT) {
+func makeGlbFitness(fitChan chan runT, newSeedChan chan seedT) {
 	glbFit := globalFitness{
 		brCovFitFunc: newBrCovFitFunc(),
 		ticker:       time.NewTicker(time.Second),
 	}
-	go glbFit.listen(fitChan)
+	go glbFit.listen(fitChan, newSeedChan)
 }
 
-func (glbFit globalFitness) listen(fitChan chan runT) {
+func (glbFit globalFitness) listen(fitChan chan runT, newSeedChan chan seedT) {
 	_, sigChan := intChans.add() // Get notified when interrupted.
 
 	fuzzContinue := true
@@ -49,7 +49,9 @@ func (glbFit globalFitness) listen(fitChan chan runT) {
 			fmt.Printf("Global fitness: %v.\n", glbFit.brCovFitFunc)
 
 		case runInfo := <-fitChan:
-			_ = glbFit.isFit(runInfo)
+			if glbFit.isFit(runInfo) {
+				newSeedChan <- seedT{runT: runInfo}
+			}
 		}
 	}
 
