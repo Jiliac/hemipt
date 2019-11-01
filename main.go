@@ -7,6 +7,7 @@ import (
 	"flag"
 	"io/ioutil"
 	"math/rand"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -45,7 +46,7 @@ func main() {
 	seeds := fuzzLoop(threads, seedInputs)
 	// ** Test **
 	traces := getSeedTrace(threads, seeds)
-	analyzeExecs(seeds, traces)
+	analyzeExecs(config.outDir, seeds, traces)
 
 	for _, t := range threads {
 		t.clean()
@@ -83,6 +84,8 @@ func parseCLI() (config configOptions) {
 		log.Fatal("Please provide an output directory.")
 	}
 
+	createOutDir(config.outDir)
+
 	return config
 }
 
@@ -106,4 +109,15 @@ func readSeeds(dir string) (seedInputs [][]byte) {
 	}
 
 	return seedInputs
+}
+
+func createOutDir(outDir string) {
+	if _, err := os.Stat(outDir); err == nil {
+		os.RemoveAll(outDir)
+	}
+
+	err := os.Mkdir(outDir, 0755)
+	if err != nil {
+		log.Fatalf("Couldn't create output directory: %v.\n", err)
+	}
 }

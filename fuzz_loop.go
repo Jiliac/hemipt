@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"log"
 
-	"encoding/csv"
 	"math/rand"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 
 	"gonum.org/v1/gonum/mat"
@@ -55,13 +55,13 @@ func getSeedTrace(threads []*thread, seeds []*seedT) (traces [][]byte) {
 // *****************************************************************************
 // ******************************* Debug/Test **********************************
 
-func analyzeExecs(seeds []*seedT, traces [][]byte) {
+func analyzeExecs(outDir string, seeds []*seedT, traces [][]byte) {
 	fmt.Println("")
 	pcas := getPCAs(getPCAFits(seeds))
 	fmt.Printf("len(seeds), len(pcas): %d, %d\n", len(seeds), len(pcas))
 	seedDists(pcas, traces)
 
-	exportHistos(pcas, "./histos.csv")
+	exportHistos(pcas, filepath.Join(outDir, "./histos.csv"))
 }
 func getPCAFits(seeds []*seedT) (pcaFits []*pcaFitFunc) {
 	for _, seed := range seeds {
@@ -132,44 +132,6 @@ func seedDists(pcas []*dynamicPCA, traces [][]byte) {
 	eDist = euclideanDist(projs[a], projs[b])
 	mDist = mahaDist(projs[a], projs[b], vars)
 	fmt.Printf("orgDist, eDist, mDist = %.3v, %.3v, %.3v\n", orgDist, eDist, mDist)
-}
-
-func exportHistos(pcas []*dynamicPCA, path string) {
-	if len(pcas) == 0 {
-		return
-	}
-	f, err := os.Create(path)
-	if err != nil {
-		log.Printf("Problem opening histo CSV file: %v.\n", err)
-		return
-	}
-
-	w := csv.NewWriter(f)
-	records := [][]string{[]string{
-		"seed_n", "dim_n", "bin_n", "start", "end", "count",
-	}}
-
-	for i := range pcas {
-		histos, steps := pcas[i].stats.histos, pcas[i].stats.steps
-		for j, histo := range histos {
-			for k, cnt := range histo {
-				//start, end := float64(i)*step, float64(i+1)*step
-				records = append(records, []string{
-					fmt.Sprintf("%d", i),                     // seed_n
-					fmt.Sprintf("%d", j),                     // dim_n
-					fmt.Sprintf("%d", k),                     // bin_n
-					fmt.Sprintf("%f", float64(k)*steps[j]),   // start
-					fmt.Sprintf("%f", float64(k+1)*steps[j]), // end
-					fmt.Sprintf("%f", cnt),                   // count
-				})
-			}
-		}
-	}
-
-	w.WriteAll(records)
-	if err := w.Error(); err != nil {
-		log.Printf("Couldn't record histograms: %v.\n", err)
-	}
 }
 
 // *****************************************************************************
