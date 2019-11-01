@@ -62,6 +62,7 @@ func analyzeExecs(outDir string, seeds []*seedT, traces [][]byte) {
 	seedDists(pcas, traces)
 
 	exportHistos(pcas, filepath.Join(outDir, "./histos.csv"))
+	exportProjResults(pcas, filepath.Join(outDir, "./pcas.csv"))
 }
 func getPCAFits(seeds []*seedT) (pcaFits []*pcaFitFunc) {
 	for _, seed := range seeds {

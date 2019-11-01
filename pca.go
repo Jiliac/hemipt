@@ -538,6 +538,15 @@ func euclideanDist(mup, muq []float64) (dist float64) {
 // ****************************** Merge Basis **********************************
 
 func mergeBasis(pcas []*dynamicPCA) (glbCenters, vars []float64, glbBasis *mat.Dense) {
+	var (
+		totDim    int
+		weights   []float64
+		basisList []mat.Matrix
+
+		start, end int
+		pc         stat.PC
+	)
+
 	// ** 1. Compute centers **
 	glbCenters = make([]float64, mapSize)
 	pcaN := float64(len(pcas))
@@ -549,16 +558,23 @@ func mergeBasis(pcas []*dynamicPCA) (glbCenters, vars []float64, glbBasis *mat.D
 	}
 
 	// ** 2. Prepare PCA **
-	var totDim int
-	var weights []float64
-	var basisList []mat.Matrix
+	for _, pca := range pcas {
+		n := float64(pca.sampleN)
+		_, c := pca.basis.Dims()
+		for i := 0; i < c; i++ {
+			weights = append(weights, pca.covMat.At(i, i)/n)
+		}
+	}
+	weightThreshold := choseWeightThreshold(weights)
+	//
+	weights = nil
 	for _, pca := range pcas {
 		n := float64(pca.sampleN)
 		_, c := pca.basis.Dims()
 		var basisN int
 		for i := 0; i < c; i++ {
 			w := pca.covMat.At(i, i) / n
-			if w < 1e-10 {
+			if w < weightThreshold {
 				break
 			}
 			weights = append(weights, w)
@@ -573,7 +589,6 @@ func mergeBasis(pcas []*dynamicPCA) (glbCenters, vars []float64, glbBasis *mat.D
 		log.Println("Too many bad basis to join.")
 	}
 	//
-	var start, end int
 	m := mat.NewDense(totDim, mapSize, nil)
 	for _, basis := range basisList {
 		r, _ := basis.Dims()
@@ -585,7 +600,6 @@ func mergeBasis(pcas []*dynamicPCA) (glbCenters, vars []float64, glbBasis *mat.D
 	}
 
 	// ** 3. Do PCA **
-	var pc stat.PC
 	r, c := m.Dims()
 	fmt.Printf("Joining all: %d, %d\n", r, c)
 	ok := pc.PrincipalComponents(m, weights)
@@ -627,6 +641,27 @@ func mergeBasis(pcas []*dynamicPCA) (glbCenters, vars []float64, glbBasis *mat.D
 	}
 
 	return glbCenters, vars, glbBasis
+}
+
+func choseWeightThreshold(weights []float64) float64 {
+	const maxWN = 1000
+	if len(weights) <= maxWN {
+		return 1e-10
+	}
+	sort.Slice(weights, func(i, j int) bool { return weights[i] > weights[j] })
+	thresh := weights[maxWN]
+	//
+	// Some verbose
+	var totVar, lossVar float64
+	for i, w := range weights {
+		totVar += w
+		if i >= maxWN {
+			lossVar += w
+		}
+	}
+	fmt.Printf("Basis variance threshold: %.3v\tloss: %.2f%%\n", thresh, 100*lossVar/totVar)
+	//
+	return thresh
 }
 
 func mahaDist(proj1, proj2, vars []float64) (dist float64) {

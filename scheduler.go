@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const fuzzRoundN = 3
+const fuzzRoundN = 5
 
 type seedT struct {
 	runT
@@ -88,7 +88,7 @@ func (sched *scheduler) schedule(fitChan chan runT, threadRunningN int) {
 				return seeds[i].execN > seeds[j].execN
 			})
 			seed := seeds[len(seeds)-1]
-			if seed.execN > fuzzRoundN {
+			if seed.execN >= fuzzRoundN {
 				if threadRunningN == 0 {
 					fuzzContinue = false
 					break
@@ -128,7 +128,7 @@ func (sched scheduler) execSeed(t *thread, seed *seedT) {
 func printStatus(seeds []*seedT) {
 	var cnt int
 	for _, seed := range seeds {
-		if seed.execN > fuzzRoundN {
+		if seed.execN >= fuzzRoundN {
 			cnt++
 		}
 	}
