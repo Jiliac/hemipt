@@ -4,12 +4,14 @@ import (
 	//"fmt"
 
 	"sort"
+	"time"
 )
 
 type seedT struct {
 	runT
 
-	execN int
+	execN   int
+	running bool
 
 	exec *executor
 }
@@ -70,22 +72,33 @@ func (sched *scheduler) schedule(fitChan chan runT) {
 		case t := <-sched.threadChan:
 			sort.Slice(seeds, func(i, j int) bool {
 				// Could be optimized ofc. But not necessary imo.
+				if a, b := seeds[i].running, seeds[j].running; a != b {
+					return a && !b
+				}
 				return seeds[i].execN > seeds[j].execN
 			})
 			seed := seeds[len(seeds)-1]
+			if seed.running {
+				go func(t *thread) {
+					time.Sleep(roundTime + 500*time.Millisecond)
+					sched.threadChan <- t
+				}(t)
+				continue
+			}
 
 			if seed.execN == 0 {
 				seed.exec.discoveryFit = fitnessMultiplexer{
 					newBrCovFitFunc(), newPCAFitFunc()}
 			}
-			seed.execN++
+			seed.execN, seed.running = seed.execN+1, true
 
-			go func(t *thread, e *executor) {
-				t.execChan <- e
+			go func(t *thread, seed *seedT) {
+				t.execChan <- seed.exec
 				<-t.endChan
 				//fmt.Printf("Local fitness: %v\n", e.discoveryFit)
+				seed.running = false
 				sched.threadChan <- t
-			}(t, seed.exec)
+			}(t, seed)
 		}
 	}
 
