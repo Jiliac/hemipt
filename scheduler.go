@@ -1,6 +1,8 @@
 package main
 
 import (
+	//"fmt"
+
 	"sort"
 )
 
@@ -81,6 +83,7 @@ func (sched *scheduler) schedule(fitChan chan runT) {
 			go func(t *thread, e *executor) {
 				t.execChan <- e
 				<-t.endChan
+				//fmt.Printf("Local fitness: %v\n", e.discoveryFit)
 				sched.threadChan <- t
 			}(t, seed.exec)
 		}
@@ -88,6 +91,9 @@ func (sched *scheduler) schedule(fitChan chan runT) {
 
 	var executors []*executor
 	for _, seed := range seeds {
+		if seed.execN == 0 {
+			continue
+		}
 		executors = append(executors, seed.exec)
 	}
 	sched.executorsChan <- executors

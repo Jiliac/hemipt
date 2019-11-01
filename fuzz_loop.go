@@ -59,18 +59,6 @@ func analyzeExecs(executors []*executor, traces [][]byte) {
 	fmt.Println("")
 	pcaFits := getPCAFits(executors)
 	pcas := getPCAs(pcaFits)
-	basis1, basis2 := pcas[0].basis, pcas[1].basis
-
-	basisProj := new(mat.Dense)
-	basisProj.Mul(basis1.T(), basis2)
-	convCrit := computeConvergence(basisProj)
-	fmt.Printf("convCrit: %.3v\n", convCrit)
-	fmt.Printf("Basis projection:\n%.3v\n", mat.Formatted(basisProj))
-
-	//compareHashes(pcaFits[0].hashes, pcaFits[1].hashes)
-	fmt.Printf("div(s1, s1):\t%.3v\n\n", klDiv(pcas[0], pcas[0]))
-	fmt.Printf("div(s1, s2):\t%.3v\n\n", klDiv(pcas[0], pcas[1]))
-	fmt.Printf("div(s2, s1):\t%.3v\n\n", klDiv(pcas[1], pcas[0]))
 	seedDists(pcas, traces)
 
 	exportHistos(pcas, "./histos.csv")
@@ -92,6 +80,9 @@ func getPCAFits(executors []*executor) (pcaFits []*pcaFitFunc) {
 }
 func getPCAs(pcaFits []*pcaFitFunc) (pcas []*dynamicPCA) {
 	for _, f := range pcaFits {
+		if f.dynpca == nil || !f.dynpca.phase4 {
+			continue
+		}
 		pcas = append(pcas, f.dynpca)
 	}
 	return pcas

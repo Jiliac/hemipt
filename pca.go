@@ -551,22 +551,31 @@ func mergeBasis(pcas []*dynamicPCA) (glbCenters, vars []float64, glbBasis *mat.D
 	// ** 2. Prepare PCA **
 	var totDim int
 	var weights []float64
+	var goodPCAs []*dynamicPCA
 	for _, pca := range pcas {
-		if !pca.phase4 {
-			continue
-		}
+		var lowW bool
+		var pcaWs []float64
 		_, c := pca.basis.Dims()
-		totDim += c
 		n := float64(pca.sampleN)
 		for i := 0; i < c; i++ {
 			w := pca.covMat.At(i, i) / n
-			weights = append(weights, w)
+			if w < 1e-10 {
+				lowW = true
+			}
+			pcaWs = append(pcaWs, w)
+		}
+		if lowW {
+			fmt.Printf("Skip this basis:\n%.2v\n", mat.Formatted(pca.covMat))
+		} else {
+			totDim += c
+			goodPCAs = append(goodPCAs, pca)
+			weights = append(weights, pcaWs...)
 		}
 	}
 	//
 	var start, end int
 	m := mat.NewDense(totDim, mapSize, nil)
-	for _, pca := range pcas {
+	for _, pca := range goodPCAs {
 		if !pca.phase4 {
 			continue
 		}
@@ -580,6 +589,8 @@ func mergeBasis(pcas []*dynamicPCA) (glbCenters, vars []float64, glbBasis *mat.D
 
 	// ** 3. Do PCA **
 	var pc stat.PC
+	r, c := m.Dims()
+	fmt.Printf("Joining all: %d, %d\n", r, c)
 	ok := pc.PrincipalComponents(m, weights)
 	if !ok {
 		log.Print("Couldn't do PCA on basis.")
