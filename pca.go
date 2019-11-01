@@ -551,38 +551,35 @@ func mergeBasis(pcas []*dynamicPCA) (glbCenters, vars []float64, glbBasis *mat.D
 	// ** 2. Prepare PCA **
 	var totDim int
 	var weights []float64
-	var goodPCAs []*dynamicPCA
+	var basisList []mat.Matrix
 	for _, pca := range pcas {
-		var lowW bool
-		var pcaWs []float64
-		_, c := pca.basis.Dims()
 		n := float64(pca.sampleN)
+		_, c := pca.basis.Dims()
+		var basisN int
 		for i := 0; i < c; i++ {
 			w := pca.covMat.At(i, i) / n
 			if w < 1e-10 {
-				lowW = true
+				break
 			}
-			pcaWs = append(pcaWs, w)
+			weights = append(weights, w)
+			totDim, basisN = totDim+1, basisN+1
 		}
-		if lowW {
-			fmt.Printf("Skip this basis:\n%.2v\n", mat.Formatted(pca.covMat))
-		} else {
-			totDim += c
-			goodPCAs = append(goodPCAs, pca)
-			weights = append(weights, pcaWs...)
+		if basisN == 0 {
+			continue
 		}
+		basisList = append(basisList, pca.basis.Slice(0, mapSize, 0, basisN).T())
+	}
+	if len(weights) < pcaInitDim {
+		log.Println("Too many bad basis to join.")
 	}
 	//
 	var start, end int
 	m := mat.NewDense(totDim, mapSize, nil)
-	for _, pca := range goodPCAs {
-		if !pca.phase4 {
-			continue
-		}
-		_, c := pca.basis.Dims()
-		end += c
+	for _, basis := range basisList {
+		r, _ := basis.Dims()
+		end += r
 		w := m.Slice(start, end, 0, mapSize).(*mat.Dense)
-		w.Copy(pca.basis.T())
+		w.Copy(basis)
 		//
 		start = end
 	}
@@ -614,6 +611,19 @@ func mergeBasis(pcas []*dynamicPCA) (glbCenters, vars []float64, glbBasis *mat.D
 	}
 	for i := range vars {
 		vars[i] /= float64(len(pcas))
+	}
+
+	// Optional: compute how much of the space we lost.
+	if true {
+		pcVars := pc.VarsTo(nil)
+		var inVar, totVar float64
+		for i, v := range pcVars {
+			totVar += v
+			if i < pcaInitDim {
+				inVar += v
+			}
+		}
+		fmt.Printf("Loss at merging: %.2f%%\n", 100-100*inVar/totVar)
 	}
 
 	return glbCenters, vars, glbBasis
