@@ -1,12 +1,14 @@
 package main
 
 import (
-	//"fmt"
+	"fmt"
 
 	"math/rand"
 	"sort"
 	"time"
 )
+
+const fuzzRoundN = 3
 
 type seedT struct {
 	runT
@@ -46,22 +48,25 @@ func newScheduler(threads []*thread, seedInputs [][]byte, fitChan chan runT) (
 		}
 	}()
 
-	go sched.schedule(fitChan)
+	go sched.schedule(fitChan, len(threads))
 
 	return sched
 }
 
-func (sched *scheduler) schedule(fitChan chan runT) {
+func (sched *scheduler) schedule(fitChan chan runT, threadRunningN int) {
 	var seeds []*seedT
 
 	_, sigChan := intChans.add() // Get notified when interrupted.
 
 	fuzzContinue := true
+	printTicker := time.NewTicker(printTickT)
 	for fuzzContinue {
 		select {
 		case _ = <-sigChan:
 			fuzzContinue = false
 			break
+		case _ = <-printTicker.C:
+			printStatus(seeds)
 
 		case newSeed := <-sched.newSeedChan:
 			newSeed.exec = &executor{
@@ -73,6 +78,7 @@ func (sched *scheduler) schedule(fitChan chan runT) {
 			seeds = append(seeds, newSeed)
 
 		case t := <-sched.threadChan:
+			threadRunningN--
 			// Is this sort too slow?
 			// Can be optimized but need a special structure :/
 			sort.Slice(seeds, func(i, j int) bool {
@@ -82,12 +88,14 @@ func (sched *scheduler) schedule(fitChan chan runT) {
 				return seeds[i].execN > seeds[j].execN
 			})
 			seed := seeds[len(seeds)-1]
-			if seed.running {
-				go func(t *thread) {
-					r := time.Duration(rand.Intn(700)) + 300
-					time.Sleep(roundTime + r*time.Millisecond)
-					sched.threadChan <- t
-				}(t)
+			if seed.execN > fuzzRoundN {
+				if threadRunningN == 0 {
+					fuzzContinue = false
+					break
+				}
+				continue
+			} else if seed.running {
+				go sched.postponeThread(t)
 				continue
 			}
 
@@ -97,14 +105,32 @@ func (sched *scheduler) schedule(fitChan chan runT) {
 			}
 			seed.execN, seed.running = seed.execN+1, true
 
-			go func(t *thread, seed *seedT) {
-				t.execChan <- seed.exec
-				<-t.endChan
-				seed.running = false
-				sched.threadChan <- t
-			}(t, seed)
+			threadRunningN++
+			go sched.execSeed(t, seed)
 		}
 	}
 
 	sched.seedsChan <- seeds
+}
+
+func (sched *scheduler) postponeThread(t *thread) {
+	r := time.Duration(rand.Intn(700)) + 300
+	time.Sleep(roundTime + r*time.Millisecond)
+	sched.threadChan <- t
+}
+func (sched scheduler) execSeed(t *thread, seed *seedT) {
+	t.execChan <- seed.exec
+	<-t.endChan
+	seed.running = false
+	sched.threadChan <- t
+}
+
+func printStatus(seeds []*seedT) {
+	var cnt int
+	for _, seed := range seeds {
+		if seed.execN > fuzzRoundN {
+			cnt++
+		}
+	}
+	fmt.Printf("Fuzzed seeds: %d/%d\n", cnt, len(seeds))
 }
