@@ -3,6 +3,7 @@ package main
 import (
 	//"fmt"
 
+	"math/rand"
 	"sort"
 	"time"
 )
@@ -17,28 +18,30 @@ type seedT struct {
 }
 type scheduler struct {
 	// Global fitness send new seeds there.
-	newSeedChan chan seedT
+	newSeedChan chan *seedT
 
 	// Once their executions are finished, empty thread are sent here.
 	threadChan chan *thread
 
-	executorsChan chan []*executor
+	seedsChan chan []*seedT
 }
 
 func newScheduler(threads []*thread, seedInputs [][]byte, fitChan chan runT) (
 	sched *scheduler) {
 
 	sched = &scheduler{
-		newSeedChan:   make(chan seedT),
-		threadChan:    make(chan *thread),
-		executorsChan: make(chan []*executor),
+		newSeedChan: make(chan *seedT),
+		threadChan:  make(chan *thread),
+		seedsChan:   make(chan []*seedT),
 	}
 
 	go func() {
 		for _, seedI := range seedInputs {
-			sched.newSeedChan <- seedT{runT: runT{input: seedI}}
+			sched.newSeedChan <- &seedT{runT: runT{input: seedI}}
 		}
 		for _, t := range threads {
+			r := time.Duration(rand.Intn(700)) + 300
+			time.Sleep(r * time.Millisecond)
 			sched.threadChan <- t
 		}
 	}()
@@ -67,11 +70,12 @@ func (sched *scheduler) schedule(fitChan chan runT) {
 				fitChan:        fitChan,
 				crashChan:      devNullFitChan,
 			}
-			seeds = append(seeds, &newSeed)
+			seeds = append(seeds, newSeed)
 
 		case t := <-sched.threadChan:
+			// Is this sort too slow?
+			// Can be optimized but need a special structure :/
 			sort.Slice(seeds, func(i, j int) bool {
-				// Could be optimized ofc. But not necessary imo.
 				if a, b := seeds[i].running, seeds[j].running; a != b {
 					return a && !b
 				}
@@ -80,7 +84,8 @@ func (sched *scheduler) schedule(fitChan chan runT) {
 			seed := seeds[len(seeds)-1]
 			if seed.running {
 				go func(t *thread) {
-					time.Sleep(roundTime + 500*time.Millisecond)
+					r := time.Duration(rand.Intn(700)) + 300
+					time.Sleep(roundTime + r*time.Millisecond)
 					sched.threadChan <- t
 				}(t)
 				continue
@@ -95,19 +100,11 @@ func (sched *scheduler) schedule(fitChan chan runT) {
 			go func(t *thread, seed *seedT) {
 				t.execChan <- seed.exec
 				<-t.endChan
-				//fmt.Printf("Local fitness: %v\n", e.discoveryFit)
 				seed.running = false
 				sched.threadChan <- t
 			}(t, seed)
 		}
 	}
 
-	var executors []*executor
-	for _, seed := range seeds {
-		if seed.execN == 0 {
-			continue
-		}
-		executors = append(executors, seed.exec)
-	}
-	sched.executorsChan <- executors
+	sched.seedsChan <- seeds
 }

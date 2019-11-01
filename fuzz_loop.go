@@ -13,7 +13,7 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-func fuzzLoop(threads []*thread, seedInputs [][]byte) (executors []*executor) {
+func fuzzLoop(threads []*thread, seedInputs [][]byte) (seeds []*seedT) {
 	if len(seedInputs) > len(threads) {
 		log.Println("For now, does not support seed scheduling. " +
 			"Need at least one thread per seed.")
@@ -24,18 +24,18 @@ func fuzzLoop(threads []*thread, seedInputs [][]byte) (executors []*executor) {
 	sched := newScheduler(threads, seedInputs, fitChan)
 	makeGlbFitness(fitChan, sched.newSeedChan)
 
-	executors = <-sched.executorsChan
-	return executors
+	seeds = <-sched.seedsChan
+	return seeds
 }
 
-func getSeedTrace(threads []*thread, seedInputs [][]byte) (traces [][]byte) {
-	traces = make([][]byte, len(seedInputs))
+func getSeedTrace(threads []*thread, seeds []*seedT) (traces [][]byte) {
+	traces = make([][]byte, len(seeds))
 	fitChan := make(chan runT, 1)
 	t := threads[0]
 
-	for i, seedI := range seedInputs {
+	for i, seed := range seeds {
 		e := &executor{
-			ig:             seedCopier(seedI),
+			ig:             seedCopier(seed.input),
 			discoveryFit:   trueFitFunc{},
 			securityPolicy: falseFitFunc{},
 			fitChan:        fitChan,
@@ -55,17 +55,17 @@ func getSeedTrace(threads []*thread, seedInputs [][]byte) (traces [][]byte) {
 // *****************************************************************************
 // ******************************* Debug/Test **********************************
 
-func analyzeExecs(executors []*executor, traces [][]byte) {
+func analyzeExecs(seeds []*seedT, traces [][]byte) {
 	fmt.Println("")
-	pcaFits := getPCAFits(executors)
-	pcas := getPCAs(pcaFits)
+	pcas := getPCAs(getPCAFits(seeds))
+	fmt.Printf("len(seeds), len(pcas): %d, %d\n", len(seeds), len(pcas))
 	seedDists(pcas, traces)
 
 	exportHistos(pcas, "./histos.csv")
 }
-func getPCAFits(executors []*executor) (pcaFits []*pcaFitFunc) {
-	for _, e := range executors {
-		df := e.discoveryFit
+func getPCAFits(seeds []*seedT) (pcaFits []*pcaFitFunc) {
+	for _, seed := range seeds {
+		df := seed.exec.discoveryFit
 		if ff, ok := df.(fitnessMultiplexer); ok {
 			for _, ffi := range ff {
 				if pcaFit, ok := ffi.(*pcaFitFunc); ok {
@@ -114,13 +114,6 @@ func seedDists(pcas []*dynamicPCA, traces [][]byte) {
 		}
 		traceMats = append(traceMats, m)
 	}
-	for _, pca := range pcas {
-		m := mat.NewDense(1, mapSize, nil)
-		for i, v := range pca.centers[:] {
-			m.Set(0, i, v-centers[i])
-		}
-		traceMats = append(traceMats, m)
-	}
 
 	var projs [][]float64
 	for _, m := range traceMats {
@@ -129,13 +122,15 @@ func seedDists(pcas []*dynamicPCA, traces [][]byte) {
 		projs = append(projs, proj.RawRowView(0))
 	}
 
-	for i, proj := range projs {
-		fmt.Printf("proj[%d]:\t%.3v\n", i, proj)
-	}
-
-	orgDist := euclideanDist(traceMats[2].RawRowView(0), traceMats[3].RawRowView(0))
-	eDist := euclideanDist(projs[2], projs[3])
-	mDist := mahaDist(projs[2], projs[3], vars)
+	a, b := 0, 1
+	orgDist := euclideanDist(traceMats[a].RawRowView(0), traceMats[b].RawRowView(0))
+	eDist := euclideanDist(projs[a], projs[b])
+	mDist := mahaDist(projs[a], projs[b], vars)
+	fmt.Printf("orgDist, eDist, mDist = %.3v, %.3v, %.3v\n", orgDist, eDist, mDist)
+	a, b = 2, 3
+	orgDist = euclideanDist(traceMats[a].RawRowView(0), traceMats[b].RawRowView(0))
+	eDist = euclideanDist(projs[a], projs[b])
+	mDist = mahaDist(projs[a], projs[b], vars)
 	fmt.Printf("orgDist, eDist, mDist = %.3v, %.3v, %.3v\n", orgDist, eDist, mDist)
 }
 

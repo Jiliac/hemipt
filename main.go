@@ -40,10 +40,10 @@ func main() {
 
 	//seedExecTest(threads, seedInputs) // Old test
 
-	executors := fuzzLoop(threads, seedInputs)
+	seeds := fuzzLoop(threads, seedInputs)
 	// ** Test **
-	traces := getSeedTrace(threads, seedInputs)
-	analyzeExecs(executors, traces)
+	traces := getSeedTrace(threads, seeds)
+	analyzeExecs(seeds, traces)
 
 	for _, t := range threads {
 		t.clean()
