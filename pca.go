@@ -496,7 +496,12 @@ func klDiv(p, q *dynamicPCA) (div float64) {
 	detP, detQ = detP*sp, detQ*sq
 	dim, _ := pCovMat.Dims()
 	div = detQ - detP
-	//fmt.Printf("(step1) div: %.3v\tdetP, detQ: %.3v, %.3v\n", div, detP, detQ)
+	if math.IsNaN(div) || math.IsInf(div, 0) {
+		fmt.Printf("(step1) div: %.3v\tdetP, detQ: %.3v, %.3v\n", div, detP, detQ)
+		fmt.Printf("%.3v\n", mat.Formatted(p.covMat))
+		fmt.Printf("%.3v\n\n", mat.Formatted(q.covMat))
+		return
+	}
 	//
 	inverseQ, prod := new(mat.Dense), new(mat.Dense)
 	inverseQ.Inverse(q.covMat)

@@ -6,6 +6,7 @@ import (
 
 	"encoding/csv"
 	"os"
+	"sync"
 
 	"gonum.org/v1/gonum/mat"
 )
@@ -112,9 +113,10 @@ func exportDistances(seeds []*seedT, path string) {
 
 	// ** 1. Prepare trace and project them **
 	var (
-		pcas               []*dynamicPCA
-		cleanedSeeds       []*seedT
-		centMats, seedMats []*mat.Dense
+		pcas                 []*dynamicPCA
+		cleanedSeeds         []*seedT
+		centMats, seedMats   []*mat.Dense
+		centProjs, seedProjs []*mat.Dense
 	)
 	for _, seed := range seeds {
 		ok, pca := getPCA(seed)
@@ -124,11 +126,12 @@ func exportDistances(seeds []*seedT, path string) {
 		}
 	}
 	if len(pcas) == 0 {
-		log.Println("No PCA found??")
+		log.Println("No PCA found?")
 		return
 	}
-	centers, _, glbBasis := mergeBasis(pcas)
+	centers, vars, glbBasis := mergeBasis(pcas)
 	if glbBasis == nil { // Means there was an error.
+		log.Println("Problem computing the global basis.")
 		return
 	}
 	for i, pca := range pcas {
@@ -139,19 +142,60 @@ func exportDistances(seeds []*seedT, path string) {
 			s.Set(0, j, logVals[tr]-centers[j])
 		}
 		centMats, seedMats = append(centMats, c), append(seedMats, s)
+		//
+		cProj, sProj := new(mat.Dense), new(mat.Dense)
+		cProj.Mul(c, glbBasis)
+		sProj.Mul(s, glbBasis)
+		centProjs, seedProjs = append(centProjs, cProj), append(seedProjs, sProj)
 	}
 
 	// ** 2. Compute distances and record them **
-	records := [][]string{[]string{"index1", "index2", "kind", "value"}}
+	var wg sync.WaitGroup
+	subRecs := make([][][]string, len(centMats))
 	for i := range centMats {
-		i1 := fmt.Sprintf("%d", i)
-		records = append(records, [][]string{
-			[]string{i1, i1, "s2c_full_eucli", fmt.Sprintf("%f", euclideanDist(
-				seedMats[i].RawRowView(0), centMats[i].RawRowView(0)))},
-			// @TODO: euclidean w/ projections and Maha.
-		}...)
+		wg.Add(1)
+		go func(i int) {
+
+			i1 := fmt.Sprintf("%d", i)
+			subRecs[i] = [][]string{
+				[]string{i1, i1, "s2c_full_eucli", fmt.Sprintf("%f", euclideanDist(
+					seedMats[i].RawRowView(0), centMats[i].RawRowView(0)))},
+				[]string{i1, i1, "s2c_proj_eucli", fmt.Sprintf("%f", euclideanDist(
+					seedProjs[i].RawRowView(0), centProjs[i].RawRowView(0)))},
+				[]string{i1, i1, "s2c_maha", fmt.Sprintf("%f", mahaDist(
+					seedProjs[i].RawRowView(0), centProjs[i].RawRowView(0), vars))},
+			}
+			for j := i + 1; j < len(centMats); j++ {
+				i2 := fmt.Sprintf("%d", j)
+				subRecs[i] = append(subRecs[i], [][]string{
+					[]string{i1, i2, "c2c_full_eucli", fmt.Sprintf("%f", euclideanDist(
+						centMats[i].RawRowView(0), centMats[j].RawRowView(0)))},
+					[]string{i1, i2, "c2c_proj_eucli", fmt.Sprintf("%f", euclideanDist(
+						centProjs[i].RawRowView(0), centProjs[j].RawRowView(0)))},
+					[]string{i1, i2, "c2c_maha", fmt.Sprintf("%f", mahaDist(
+						centProjs[i].RawRowView(0), centProjs[j].RawRowView(0), vars))},
+					[]string{i1, i2, "s2s_full_eucli", fmt.Sprintf("%f", euclideanDist(
+						seedMats[i].RawRowView(0), seedMats[j].RawRowView(0)))},
+					[]string{i1, i2, "s2s_proj_eucli", fmt.Sprintf("%f", euclideanDist(
+						seedProjs[i].RawRowView(0), seedProjs[j].RawRowView(0)))},
+					[]string{i1, i2, "s2s_maha", fmt.Sprintf("%f", mahaDist(
+						seedProjs[i].RawRowView(0), seedProjs[j].RawRowView(0), vars))},
+					[]string{i1, i2, "divergence", fmt.Sprintf("%f",
+						klDiv(pcas[i], pcas[j]))},
+					[]string{i2, i1, "divergence", fmt.Sprintf("%f",
+						klDiv(pcas[j], pcas[i]))},
+				}...)
+			}
+
+			wg.Done()
+		}(i)
 	}
 
+	wg.Wait()
+	records := [][]string{[]string{"index1", "index2", "kind", "value"}}
+	for _, subRec := range subRecs {
+		records = append(records, subRec...)
+	}
 	writeCSV(w, records)
 }
 
