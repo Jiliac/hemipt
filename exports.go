@@ -26,6 +26,7 @@ func writeCSV(w *csv.Writer, records [][]string) {
 	if err := w.Error(); err != nil {
 		log.Printf("Couldn't record CSV: %v.\n", err)
 	}
+	// @TODO: Close the underlying file?
 }
 
 func exportHistos(pcas []*dynamicPCA, path string) {
@@ -95,4 +96,84 @@ func exportProjResults(pcas []*dynamicPCA, path string) {
 	}
 
 	writeCSV(w, records)
+}
+
+// ********************************************
+// ***** Export all kind of seed distance *****
+
+func exportDistances(seeds []*seedT, path string) {
+	if len(seeds) == 0 {
+		return
+	}
+	ok, w := makeCSVFile(path)
+	if !ok {
+		return
+	}
+
+	// ** 1. Prepare trace and project them **
+	var (
+		pcas               []*dynamicPCA
+		cleanedSeeds       []*seedT
+		centMats, seedMats []*mat.Dense
+	)
+	for _, seed := range seeds {
+		ok, pca := getPCA(seed)
+		if ok {
+			pcas = append(pcas, pca)
+			cleanedSeeds = append(cleanedSeeds, seed)
+		}
+	}
+	if len(pcas) == 0 {
+		log.Println("No PCA found??")
+		return
+	}
+	centers, _, glbBasis := mergeBasis(pcas)
+	if glbBasis == nil { // Means there was an error.
+		return
+	}
+	for i, pca := range pcas {
+		c, s := mat.NewDense(1, mapSize, nil), mat.NewDense(1, mapSize, nil)
+		seed := cleanedSeeds[i]
+		for j, tr := range seed.trace {
+			c.Set(0, j, pca.centers[j]-centers[j])
+			s.Set(0, j, logVals[tr]-centers[j])
+		}
+		centMats, seedMats = append(centMats, c), append(seedMats, s)
+	}
+
+	// ** 2. Compute distances and record them **
+	records := [][]string{[]string{"index1", "index2", "kind", "value"}}
+	for i := range centMats {
+		i1 := fmt.Sprintf("%d", i)
+		records = append(records, [][]string{
+			[]string{i1, i1, "s2c_full_eucli", fmt.Sprintf("%f", euclideanDist(
+				seedMats[i].RawRowView(0), centMats[i].RawRowView(0)))},
+			// @TODO: euclidean w/ projections and Maha.
+		}...)
+	}
+
+	writeCSV(w, records)
+}
+
+func getPCA(seed *seedT) (ok bool, pca *dynamicPCA) {
+	if seed == nil || seed.exec == nil {
+		return
+	}
+	//
+	df := seed.exec.discoveryFit
+	var pcaFF *pcaFitFunc
+	if ff, okConv := df.(fitnessMultiplexer); okConv {
+		for _, ffi := range ff {
+			if pcaFit, okConv := ffi.(*pcaFitFunc); okConv {
+				pcaFF = pcaFit
+			}
+		}
+	} else if pcaFit, okConv := df.(*pcaFitFunc); okConv {
+		pcaFF = pcaFit
+	}
+	if pcaFF != nil && pcaFF.dynpca != nil && pcaFF.dynpca.phase4 {
+		ok = true
+		pca = pcaFF.dynpca
+	}
+	return ok, pca
 }

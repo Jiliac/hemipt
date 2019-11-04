@@ -496,14 +496,14 @@ func klDiv(p, q *dynamicPCA) (div float64) {
 	detP, detQ = detP*sp, detQ*sq
 	dim, _ := pCovMat.Dims()
 	div = detQ - detP
-	fmt.Printf("(step1) div: %.3v\tdetP, detQ: %.3v, %.3v\n", div, detP, detQ)
+	//fmt.Printf("(step1) div: %.3v\tdetP, detQ: %.3v, %.3v\n", div, detP, detQ)
 	//
 	inverseQ, prod := new(mat.Dense), new(mat.Dense)
 	inverseQ.Inverse(q.covMat)
 	prod.Mul(inverseQ, pCovMat)
 	tr := prod.Trace() - float64(dim)
 	div += tr
-	fmt.Printf("(step2) div: %.3v\tTrace-D: %.3v\n", div, tr)
+	//fmt.Printf("(step2) div: %.3v\tTrace-D: %.3v\n", div, tr)
 	//
 	diff := matDiff(p.centers[:], q.centers[:])
 	diffProj, prod2, prod3 := new(mat.Dense), new(mat.Dense), new(mat.Dense)
@@ -511,9 +511,9 @@ func klDiv(p, q *dynamicPCA) (div float64) {
 	prod2.Mul(diffProj, inverseQ)
 	prod3.Mul(prod2, diffProj.T())
 	div += prod3.At(0, 0)
-	fmt.Printf("(step3) centers dist: %.3v\n", prod3.At(0, 0))
-	fmt.Printf("Centers Eucledian distance: %.3v\n",
-		euclideanDist(p.centers[:], q.centers[:]))
+	//fmt.Printf("(step3) centers dist: %.3v\n", prod3.At(0, 0))
+	//fmt.Printf("Centers Eucledian distance: %.3v\n",
+	//	euclideanDist(p.centers[:], q.centers[:]))
 
 	div /= 2
 	return div
