@@ -34,6 +34,7 @@ func startThread(binPath string, cliArgs []string) (t *thread, ok bool) {
 		ok, t.cpu = lockRoutine()
 		if !ok {
 			wg.Done()
+			log.Println("Couldn't lock routine.")
 			return
 		}
 

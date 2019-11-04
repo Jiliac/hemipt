@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	"math/rand"
 	"os"
@@ -14,12 +13,6 @@ import (
 )
 
 func fuzzLoop(threads []*thread, seedInputs [][]byte) (seeds []*seedT) {
-	if len(seedInputs) > len(threads) {
-		log.Println("For now, does not support seed scheduling. " +
-			"Need at least one thread per seed.")
-		return
-	}
-
 	fitChan := make(chan runT, 1000)
 	sched := newScheduler(threads, seedInputs, fitChan)
 	makeGlbFitness(fitChan, sched.newSeedChan)

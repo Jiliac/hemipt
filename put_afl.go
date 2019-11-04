@@ -170,6 +170,7 @@ func startAFLPUT(binPath string, cliArgs []string, timeout time.Duration) (
 	put *aflPutT, ok bool) {
 
 	if _, err := os.Stat(binPath); os.IsNotExist(err) {
+		log.Printf("Wrong PUT path given: %s.\n", binPath)
 		return
 	}
 	put = new(aflPutT)
@@ -185,12 +186,14 @@ func startAFLPUT(binPath string, cliArgs []string, timeout time.Duration) (
 		okPW, put.writer, files = makeStdinPUTWriter()
 	}
 	if !okPW {
+		log.Println("Couldn't setup I/O with PUT.")
 		return
 	}
 
 	// ** II - Prepare binary launch **
 	okShm, shmID, trace := setupShm()
 	if !okShm {
+		log.Println("Couldn't setup shared memory with PUT.")
 		return
 	}
 	put.trace, put.shmID = trace, shmID
@@ -207,6 +210,7 @@ func startAFLPUT(binPath string, cliArgs []string, timeout time.Duration) (
 	// ** III - Launch binary **
 	okFrk, put.ctlPipeW, put.stPipeR, put.pid = initForkserver(binPath, cliArgs, procAttr)
 	if !okFrk {
+		log.Println("Problem starting fork server.")
 		return
 	}
 
@@ -342,15 +346,22 @@ func init() {
 }
 
 type fileIO struct {
-	path string
+	path     string
+	usedOnce *bool
 }
 
+func newFileIO(path string) fileIO { return fileIO{path: path, usedOnce: new(bool)} }
 func (fio fileIO) Write(tc []byte) (n int, err error) {
-	err = os.Remove(fio.path)
-	if err != nil {
-		log.Printf("Problem removing test case path: %v "+
-			"(normal if first time running).\n", err)
+	if *fio.usedOnce {
+		err = os.Remove(fio.path)
+		if err != nil {
+			log.Printf("Problem removing test case path: %v "+
+				"(normal if first time running).\n", err)
+		}
+	} else {
+		*fio.usedOnce = true
 	}
+	//
 	f, err := os.OpenFile(fio.path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		log.Printf("Could not open test case file %s: %v.\n", fio.path, err)
@@ -369,7 +380,7 @@ func makeFilePUTWriter(args []string, fileArg int, filePathPos [2]int) (
 
 	// Setup
 	fileInName := filepath.Join(workDir, fmt.Sprintf("tmp-%x", rand.Int63()))
-	ok, pw = true, fileIO{path: fileInName}
+	ok, pw = true, newFileIO(fileInName)
 	files = []uintptr{devNull.Fd(), devNull.Fd(), devNull.Fd()}
 
 	// Prepare argument(s)
