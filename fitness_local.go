@@ -138,16 +138,15 @@ func (pff *pcaFitFunc) isFit(runInfo runT) (fit bool) {
 		}
 	}
 
-	// Not really sure about this. It can make a strong bias.
-	//
-	//if _, ok := pff.hashes[runInfo.hash]; ok {
-	//	return fit
-	//}
-	pff.hashes[runInfo.hash] = struct{}{}
-
 	if pff.initializing {
-		pff.queue = append(pff.queue, runInfo.trace)
+		if _, ok := pff.hashes[runInfo.hash]; !ok {
+			pff.queue = append(pff.queue, runInfo.trace)
+		}
+		pff.hashes[runInfo.hash] = struct{}{}
 		return fit
+
+	} else {
+		pff.hashes[runInfo.hash] = struct{}{}
 	}
 
 	pff.dynpca.newSample(runInfo.trace)
@@ -156,10 +155,16 @@ func (pff *pcaFitFunc) isFit(runInfo runT) (fit bool) {
 }
 
 func (pff *pcaFitFunc) endInit() {
+	if len(pff.queue) < pcaInitDim {
+		pff.initTimer = time.NewTimer(3 * pcaInitTime)
+		return
+	}
 	var ok bool
 	ok, pff.dynpca = newDynPCA(pff.queue)
 	if ok {
 		pff.initializing = false
+	} else {
+		pff.dynpca = nil
 	}
 	pff.queue = nil
 }

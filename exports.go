@@ -152,6 +152,7 @@ func exportDistances(seeds []*seedT, path string) {
 	// ** 2. Compute distances and record them **
 	var wg sync.WaitGroup
 	subRecs := make([][][]string, len(centMats))
+	rrv := func(m *mat.Dense) []float64 { return m.RawRowView(0) }
 	for i := range centMats {
 		wg.Add(1)
 		go func(i int) {
@@ -159,27 +160,27 @@ func exportDistances(seeds []*seedT, path string) {
 			i1 := fmt.Sprintf("%d", i)
 			subRecs[i] = [][]string{
 				[]string{i1, i1, "s2c_full_eucli", fmt.Sprintf("%f", euclideanDist(
-					seedMats[i].RawRowView(0), centMats[i].RawRowView(0)))},
+					rrv(seedMats[i]), rrv(centMats[i])))},
 				[]string{i1, i1, "s2c_proj_eucli", fmt.Sprintf("%f", euclideanDist(
 					seedProjs[i].RawRowView(0), centProjs[i].RawRowView(0)))},
 				[]string{i1, i1, "s2c_maha", fmt.Sprintf("%f", mahaDist(
-					seedProjs[i].RawRowView(0), centProjs[i].RawRowView(0), vars))},
+					rrv(seedProjs[i]), rrv(centProjs[i]), vars))},
 			}
 			for j := i + 1; j < len(centMats); j++ {
 				i2 := fmt.Sprintf("%d", j)
 				subRecs[i] = append(subRecs[i], [][]string{
 					[]string{i1, i2, "c2c_full_eucli", fmt.Sprintf("%f", euclideanDist(
-						centMats[i].RawRowView(0), centMats[j].RawRowView(0)))},
+						rrv(centMats[i]), rrv(centMats[j])))},
 					[]string{i1, i2, "c2c_proj_eucli", fmt.Sprintf("%f", euclideanDist(
-						centProjs[i].RawRowView(0), centProjs[j].RawRowView(0)))},
+						rrv(centProjs[i]), rrv(centProjs[j])))},
 					[]string{i1, i2, "c2c_maha", fmt.Sprintf("%f", mahaDist(
-						centProjs[i].RawRowView(0), centProjs[j].RawRowView(0), vars))},
+						rrv(centProjs[i]), rrv(centProjs[j]), vars))},
 					[]string{i1, i2, "s2s_full_eucli", fmt.Sprintf("%f", euclideanDist(
-						seedMats[i].RawRowView(0), seedMats[j].RawRowView(0)))},
+						rrv(seedMats[i]), rrv(seedMats[j])))},
 					[]string{i1, i2, "s2s_proj_eucli", fmt.Sprintf("%f", euclideanDist(
-						seedProjs[i].RawRowView(0), seedProjs[j].RawRowView(0)))},
+						rrv(seedProjs[i]), rrv(seedProjs[j])))},
 					[]string{i1, i2, "s2s_maha", fmt.Sprintf("%f", mahaDist(
-						seedProjs[i].RawRowView(0), seedProjs[j].RawRowView(0), vars))},
+						rrv(seedProjs[i]), rrv(seedProjs[j]), vars))},
 					[]string{i1, i2, "divergence", fmt.Sprintf("%f",
 						klDiv(pcas[i], pcas[j]))},
 					[]string{i2, i1, "divergence", fmt.Sprintf("%f",
