@@ -484,35 +484,39 @@ func printCompoStats(stats *basisStats, tm, fm *mat.Dense) string {
 
 func klDiv(p, q *dynamicPCA) (div float64) {
 	// 1. Project P covariance matric in Q basis.
-	changeMat, pCovMat, qCovMat := new(mat.Dense), new(mat.Dense), new(mat.Dense)
-	changeMat.Mul(p.basis.T(), q.basis)
+	// This projection is not correct. But otherwise, divergence goes to
+	// infinity. It's too easy for the divergence to go to infinity :/
+	// EMD/Wasserstein would be better?
+	qCovMat, inverseQ, basis := inverseMat(q)
+	changeMat := new(mat.Dense)
+	changeMat.Mul(p.basis.T(), basis)
 	//
+	tmpProj, projPCovMat, pCovMat := new(mat.Dense), new(mat.Dense), new(mat.Dense)
 	pCovMat.Scale(1/float64(p.sampleN), p.covMat)
-	pCovMat.Mul(changeMat.T(), pCovMat)
-	pCovMat.Mul(pCovMat, changeMat)
-	// Also scale Q covariance matrix
-	qCovMat.Scale(1/float64(q.sampleN), q.covMat)
+	tmpProj.Mul(changeMat.T(), pCovMat)
+	projPCovMat.Mul(tmpProj, changeMat)
 
 	// 2. Compute the divergence
 	dim, _ := pCovMat.Dims()
-	detP, _ := mat.LogDet(pCovMat)
+	//detP, _ := mat.LogDet(pCovMat) // Not sure about this.
+	detP, _ := mat.LogDet(projPCovMat)
 	detQ, _ := mat.LogDet(qCovMat)
 	//
-	inverseQ, prod := new(mat.Dense), new(mat.Dense)
-	inverseQ.Inverse(qCovMat)
-	prod.Mul(inverseQ, pCovMat)
+	prod := new(mat.Dense)
+	prod.Mul(inverseQ, projPCovMat)
 	tr := prod.Trace()
 	//
-	diff := matDiff(p.centers[:], q.centers[:])
 	diffProj, prod2, prod3 := new(mat.Dense), new(mat.Dense), new(mat.Dense)
-	diffProj.Mul(diff, q.basis)
+	diff := matDiff(p.centers[:], q.centers[:])
+	diffProj.Mul(diff, basis)
 	prod2.Mul(diffProj, inverseQ)
 	prod3.Mul(prod2, diffProj.T())
 	dist := prod3.At(0, 0)
 	//
 	div = detQ - detP + tr - float64(dim) + dist
 
-	if div < 0 || div > 1e6 {
+	if div < 0 || div > 1e6 || math.IsInf(div, 0) || math.IsNaN(div) {
+		//fmt.Printf("Q-1:\n%.2v\n", mat.Formatted(inverseQ))
 		fmt.Printf("(step1) div: %.3v\tdetP, detQ: %.3v, %.3v\n"+
 			"(step2) div: %.3v\tTrace-D: %.3v\n"+
 			"(step3) div: %.3v\tcenters dist: %.3v\n\n",
@@ -534,6 +538,29 @@ func matDiff(mup, muq []float64) *mat.Dense {
 	}
 	return diff
 }
+func inverseMat(pca *dynamicPCA) (covMat, inv, basis *mat.Dense) {
+	covMat, inv = new(mat.Dense), new(mat.Dense)
+	covMat.Scale(1/float64(pca.sampleN), pca.covMat)
+	dim, _ := covMat.Dims()
+
+	maxDim := -1
+	for i := 0; i < dim; i++ {
+		if covMat.At(i, i) < 1e-5 {
+			maxDim = i
+			break
+		}
+	}
+	//
+	basis = pca.basis
+	if maxDim != -1 {
+		covMat = covMat.Slice(0, maxDim, 0, maxDim).(*mat.Dense)
+		basis = basis.Slice(0, mapSize, 0, maxDim).(*mat.Dense)
+	}
+	inv.Inverse(covMat)
+
+	return covMat, inv, basis
+}
+
 func euclideanDist(mup, muq []float64) (dist float64) {
 	for i, tp := range mup {
 		diff := tp - muq[i]
