@@ -483,48 +483,48 @@ func printCompoStats(stats *basisStats, tm, fm *mat.Dense) string {
 // ***************************** Seed Distance *********************************
 
 func klDiv(p, q *dynamicPCA) (div float64) {
-	// 1. Project p covariance matric in q basis.
-	changeMat, pCovMat := new(mat.Dense), new(mat.Dense)
+	// 1. Project P covariance matric in Q basis.
+	changeMat, pCovMat, qCovMat := new(mat.Dense), new(mat.Dense), new(mat.Dense)
 	changeMat.Mul(p.basis.T(), q.basis)
 	//
-	pCovMat.Mul(changeMat.T(), p.covMat)
+	pCovMat.Scale(1/float64(p.sampleN), p.covMat)
+	pCovMat.Mul(changeMat.T(), pCovMat)
 	pCovMat.Mul(pCovMat, changeMat)
+	// Also scale Q covariance matrix
+	qCovMat.Scale(1/float64(q.sampleN), q.covMat)
 
 	// 2. Compute the divergence
 	dim, _ := pCovMat.Dims()
-	detP, detQ := p.logDet(dim), q.logDet(dim)
-	div = detQ - detP
-	if math.IsNaN(div) || math.IsInf(div, 0) {
-		fmt.Printf("(step1) div: %.3v\tdetP, detQ: %.3v, %.3v\n", div, detP, detQ)
-		fmt.Printf("%.3v\n", mat.Formatted(p.covMat))
-		fmt.Printf("%.3v\n\n", mat.Formatted(q.covMat))
-		return
-	}
+	detP, _ := mat.LogDet(pCovMat)
+	detQ, _ := mat.LogDet(qCovMat)
 	//
 	inverseQ, prod := new(mat.Dense), new(mat.Dense)
-	inverseQ.Inverse(q.covMat)
+	inverseQ.Inverse(qCovMat)
 	prod.Mul(inverseQ, pCovMat)
-	tr := prod.Trace() * float64(q.sampleN) / float64(p.sampleN)
-	div += tr - float64(dim)
-	//fmt.Printf("(step2) div: %.3v\tTrace-D: %.3v\n", div, tr)
+	tr := prod.Trace()
 	//
 	diff := matDiff(p.centers[:], q.centers[:])
 	diffProj, prod2, prod3 := new(mat.Dense), new(mat.Dense), new(mat.Dense)
 	diffProj.Mul(diff, q.basis)
 	prod2.Mul(diffProj, inverseQ)
 	prod3.Mul(prod2, diffProj.T())
-	div += prod3.At(0, 0)
-	//fmt.Printf("(step3) centers dist: %.3v\n", prod3.At(0, 0))
-	//fmt.Printf("Centers Eucledian distance: %.3v\n",
-	//	euclideanDist(p.centers[:], q.centers[:]))
+	dist := prod3.At(0, 0)
+	//
+	div = detQ - detP + tr - float64(dim) + dist
+
+	if div < 0 || div > 1e6 {
+		fmt.Printf("(step1) div: %.3v\tdetP, detQ: %.3v, %.3v\n"+
+			"(step2) div: %.3v\tTrace-D: %.3v\n"+
+			"(step3) div: %.3v\tcenters dist: %.3v\n\n",
+			detQ-detP, detP, detQ,
+			detQ-detP+tr-float64(dim), tr-float64(dim),
+			div, dist)
+		//fmt.Printf("Centers Eucledian distance: %.3v\n",
+		//	euclideanDist(p.centers[:], q.centers[:]))
+	}
 
 	div /= 2
 	return div
-}
-func (pca *dynamicPCA) logDet(dim int) (ld float64) {
-	det, _ := mat.LogDet(pca.covMat)
-	det -= float64(dim) * math.Log(float64(pca.sampleN))
-	return det
 }
 func matDiff(mup, muq []float64) *mat.Dense {
 	diff := mat.NewDense(1, mapSize, nil)
