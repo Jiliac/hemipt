@@ -55,6 +55,7 @@ func newScheduler(threads []*thread, seedInputs [][]byte, fitChan chan runT) (
 
 func (sched *scheduler) schedule(fitChan chan runT, threadRunningN int) {
 	var seeds []*seedT
+	var sleepingThreads []*thread
 
 	_, sigChan := intChans.add() // Get notified when interrupted.
 
@@ -76,6 +77,14 @@ func (sched *scheduler) schedule(fitChan chan runT, threadRunningN int) {
 				crashChan:      devNullFitChan,
 			}
 			seeds = append(seeds, newSeed)
+			//
+			if len(sleepingThreads) > 0 {
+				threadRunningN++
+				l := len(sleepingThreads)
+				t := sleepingThreads[l-1]
+				sleepingThreads = sleepingThreads[:l-1]
+				go func() { sched.threadChan <- t }()
+			}
 
 		case t := <-sched.threadChan:
 			threadRunningN--
@@ -93,8 +102,10 @@ func (sched *scheduler) schedule(fitChan chan runT, threadRunningN int) {
 					fuzzContinue = false
 					break
 				}
+				sleepingThreads = append(sleepingThreads, t)
 				continue
 			} else if seed.running {
+				threadRunningN++
 				go sched.postponeThread(t)
 				continue
 			}

@@ -491,10 +491,8 @@ func klDiv(p, q *dynamicPCA) (div float64) {
 	pCovMat.Mul(pCovMat, changeMat)
 
 	// 2. Compute the divergence
-	detP, sp := mat.LogDet(p.covMat)
-	detQ, sq := mat.LogDet(q.covMat)
-	detP, detQ = detP*sp, detQ*sq
 	dim, _ := pCovMat.Dims()
+	detP, detQ := p.logDet(dim), q.logDet(dim)
 	div = detQ - detP
 	if math.IsNaN(div) || math.IsInf(div, 0) {
 		fmt.Printf("(step1) div: %.3v\tdetP, detQ: %.3v, %.3v\n", div, detP, detQ)
@@ -506,8 +504,8 @@ func klDiv(p, q *dynamicPCA) (div float64) {
 	inverseQ, prod := new(mat.Dense), new(mat.Dense)
 	inverseQ.Inverse(q.covMat)
 	prod.Mul(inverseQ, pCovMat)
-	tr := prod.Trace() - float64(dim)
-	div += tr
+	tr := prod.Trace() * float64(q.sampleN) / float64(p.sampleN)
+	div += tr - float64(dim)
 	//fmt.Printf("(step2) div: %.3v\tTrace-D: %.3v\n", div, tr)
 	//
 	diff := matDiff(p.centers[:], q.centers[:])
@@ -522,6 +520,11 @@ func klDiv(p, q *dynamicPCA) (div float64) {
 
 	div /= 2
 	return div
+}
+func (pca *dynamicPCA) logDet(dim int) (ld float64) {
+	det, _ := mat.LogDet(pca.covMat)
+	det -= float64(dim) * math.Log(float64(pca.sampleN))
+	return det
 }
 func matDiff(mup, muq []float64) *mat.Dense {
 	diff := mat.NewDense(1, mapSize, nil)
@@ -588,6 +591,7 @@ func mergeBasis(pcas []*dynamicPCA) (glbCenters, vars []float64, glbBasis *mat.D
 		if basisN == 0 {
 			continue
 		}
+		// @TODO: Should shift all the vector of the basis by the new center.
 		basisList = append(basisList, pca.basis.Slice(0, mapSize, 0, basisN).T())
 	}
 	if len(weights) < pcaInitDim {
