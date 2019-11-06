@@ -102,7 +102,9 @@ func exportProjResults(pcas []*dynamicPCA, path string) {
 // ********************************************
 // ***** Export all kind of seed distance *****
 
-func exportDistances(seeds []*seedT, path string) {
+func exportDistances(seeds []*seedT, path string) (
+	okP bool, vars []float64, centProjs, seedProjs []*mat.Dense) {
+
 	if len(seeds) == 0 {
 		return
 	}
@@ -113,10 +115,9 @@ func exportDistances(seeds []*seedT, path string) {
 
 	// ** 1. Prepare trace and project them **
 	var (
-		pcas                 []*dynamicPCA
-		cleanedSeeds         []*seedT
-		centMats, seedMats   []*mat.Dense
-		centProjs, seedProjs []*mat.Dense
+		pcas               []*dynamicPCA
+		cleanedSeeds       []*seedT
+		centMats, seedMats []*mat.Dense
 	)
 	for _, seed := range seeds {
 		ok, pca := getPCA(seed)
@@ -198,6 +199,9 @@ func exportDistances(seeds []*seedT, path string) {
 		records = append(records, subRec...)
 	}
 	writeCSV(w, records)
+
+	okP = true
+	return okP, vars, centProjs, seedProjs
 }
 
 func getPCA(seed *seedT) (ok bool, pca *dynamicPCA) {
@@ -221,4 +225,43 @@ func getPCA(seed *seedT) (ok bool, pca *dynamicPCA) {
 		pca = pcaFF.dynpca
 	}
 	return ok, pca
+}
+
+func exportCoor(vars []float64, centProjs, seedProjs []*mat.Dense, path string) {
+	ok, w := makeCSVFile(path)
+	if !ok {
+		return
+	}
+
+	header := []string{"kind", "index"}
+	for i := range vars {
+		header = append(header, fmt.Sprintf("pc%d", i))
+	}
+	records := [][]string{header}
+
+	// a. Export variances
+	varsStrs := []string{"variance", "0"}
+	for _, v := range vars {
+		varsStrs = append(varsStrs, fmt.Sprintf("%f", v))
+	}
+	records = append(records, varsStrs)
+	// b. Export centers' coordinates
+	rrv := func(m *mat.Dense) []float64 { return m.RawRowView(0) }
+	for i, c := range centProjs {
+		strs := []string{"center", fmt.Sprintf("%d", i)}
+		for _, v := range rrv(c) {
+			strs = append(strs, fmt.Sprintf("%f", v))
+		}
+		records = append(records, strs)
+	}
+	// c. Export seeds' coordinates
+	for i, s := range seedProjs {
+		strs := []string{"seed", fmt.Sprintf("%d", i)}
+		for _, v := range rrv(s) {
+			strs = append(strs, fmt.Sprintf("%f", v))
+		}
+		records = append(records, strs)
+	}
+
+	writeCSV(w, records)
 }
