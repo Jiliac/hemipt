@@ -515,7 +515,7 @@ func klDiv(p, q *dynamicPCA) (div float64) {
 	//
 	div = detQ - detP + tr - float64(dim) + dist
 
-	if div < 0 || div > 1e6 || math.IsInf(div, 0) || math.IsNaN(div) {
+	if div < 0 || div > 1e10 || math.IsInf(div, 0) || math.IsNaN(div) {
 		//fmt.Printf("Q-1:\n%.2v\n", mat.Formatted(inverseQ))
 		fmt.Printf("(step1) div: %.3v\tdetP, detQ: %.3v, %.3v\n"+
 			"(step2) div: %.3v\tTrace-D: %.3v\n"+

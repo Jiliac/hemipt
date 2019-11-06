@@ -159,6 +159,9 @@ func exportDistances(seeds []*seedT, path string) (
 		go func(i int) {
 
 			i1 := fmt.Sprintf("%d", i)
+			sqNorm := pcas[i].stats.sqNorm / float64(pcas[i].sampleN)
+			covMat, _, _ := inverseMat(pcas[i])
+			det, _ := mat.LogDet(covMat)
 			subRecs[i] = [][]string{
 				[]string{i1, i1, "s2c_full_eucli", fmt.Sprintf("%f", euclideanDist(
 					rrv(seedMats[i]), rrv(centMats[i])))},
@@ -166,6 +169,8 @@ func exportDistances(seeds []*seedT, path string) (
 					seedProjs[i].RawRowView(0), centProjs[i].RawRowView(0)))},
 				[]string{i1, i1, "s2c_maha", fmt.Sprintf("%f", mahaDist(
 					rrv(seedProjs[i]), rrv(centProjs[i]), vars))},
+				[]string{i1, i1, "sq_norm", fmt.Sprintf("%f", sqNorm)},
+				[]string{i1, i1, "log_det", fmt.Sprintf("%f", det)},
 			}
 			for j := i + 1; j < len(centMats); j++ {
 				i2 := fmt.Sprintf("%d", j)
