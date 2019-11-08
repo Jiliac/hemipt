@@ -101,11 +101,29 @@ func exportProjResults(pcas []*dynamicPCA, path string) {
 	writeCSV(w, records)
 }
 
+func exportHashes(seeds []*seedT, path string) {
+	if len(seeds) == 0 {
+		return
+	}
+	ok, w := makeCSVFile(path)
+	if !ok {
+		return
+	}
+
+	records := [][]string{[]string{"index", "hash"}}
+	for i, seed := range seeds {
+		records = append(records, []string{
+			fmt.Sprintf("%d", i), fmt.Sprintf("0x%x", seed.hash)})
+	}
+
+	writeCSV(w, records)
+}
+
 // ********************************************
 // ***** Export all kind of seed distance *****
 
-func exportDistances(seeds []*seedT, glbProj globalProjection, path string) {
-	if len(seeds) == 0 {
+func exportDistances(glbProj globalProjection, path string) {
+	if len(glbProj.cleanedSeeds) == 0 {
 		return
 	}
 	ok, w := makeCSVFile(path)
@@ -127,7 +145,6 @@ func exportDistances(seeds []*seedT, glbProj globalProjection, path string) {
 			sqNorm := pcas[i].stats.sqNorm / float64(pcas[i].sampleN)
 			covMat, _, _ := inverseMat(pcas[i])
 			det, _ := mat.LogDet(covMat)
-			hash := glbProj.cleanedSeeds[i].hash
 			subRecs[i] = [][]string{
 				[]string{i1, i1, "s2c_full_eucli", fmt.Sprintf("%f", euclideanDist(
 					rrv(seedMats[i]), rrv(centMats[i])))},
@@ -137,7 +154,6 @@ func exportDistances(seeds []*seedT, glbProj globalProjection, path string) {
 					rrv(seedProjs[i]), rrv(centProjs[i]), vars))},
 				[]string{i1, i1, "sq_norm", fmt.Sprintf("%f", sqNorm)},
 				[]string{i1, i1, "log_det", fmt.Sprintf("%f", det)},
-				[]string{i1, i1, "hash", fmt.Sprintf("%x", hash)},
 			}
 
 			virtPoint := &dynamicPCA{

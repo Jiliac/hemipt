@@ -65,7 +65,8 @@ func export(outDir string, seeds []*seedT, traces [][]byte) {
 	exportHistos(pcas, filepath.Join(outDir, "histos.csv"))
 	exportProjResults(pcas, filepath.Join(outDir, "pcas.csv"))
 
-	exportDistances(seeds, glbProj, filepath.Join(outDir, "distances.csv"))
+	exportHashes(glbProj.cleanedSeeds, filepath.Join(outDir, "hashes.csv"))
+	exportDistances(glbProj, filepath.Join(outDir, "distances.csv"))
 	exportCoor(glbProj, filepath.Join(outDir, "coords.csv"))
 }
 
