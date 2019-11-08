@@ -44,14 +44,29 @@ func main() {
 	//seedExecTest(threads, seedInputs) // Old test
 
 	seeds := fuzzLoop(threads, seedInputs)
-	// ** Test **
+	// ** Epilogue **
 	traces := getSeedTrace(threads, seeds)
-	analyzeExecs(config.outDir, seeds, traces)
+	export(config.outDir, seeds, traces)
 	saveSeeds(config.outDir, seeds)
 
 	for _, t := range threads {
 		t.clean()
 	}
+}
+
+func export(outDir string, seeds []*seedT, traces [][]byte) {
+	fmt.Println("")
+	ok, glbProj := doGlbProjection(seeds)
+	if !ok {
+		return
+	}
+
+	pcas := glbProj.pcas
+	exportHistos(pcas, filepath.Join(outDir, "histos.csv"))
+	exportProjResults(pcas, filepath.Join(outDir, "pcas.csv"))
+
+	exportDistances(seeds, glbProj, filepath.Join(outDir, "distances.csv"))
+	exportCoor(glbProj, filepath.Join(outDir, "coords.csv"))
 }
 
 // *****************************************************************************

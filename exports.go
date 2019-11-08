@@ -104,9 +104,7 @@ func exportProjResults(pcas []*dynamicPCA, path string) {
 // ********************************************
 // ***** Export all kind of seed distance *****
 
-func exportDistances(seeds []*seedT, path string) (
-	okP bool, vars []float64, centProjs, seedProjs []*mat.Dense) {
-
+func exportDistances(seeds []*seedT, glbProj globalProjection, path string) {
 	if len(seeds) == 0 {
 		return
 	}
@@ -115,9 +113,8 @@ func exportDistances(seeds []*seedT, path string) (
 		return
 	}
 
-	glbProj := doGlbProjection(seeds)
 	pcas, centMats, seedMats := glbProj.pcas, glbProj.centMats, glbProj.seedMats
-	vars, centProjs, seedProjs = glbProj.vars, glbProj.centProjs, glbProj.seedProjs
+	vars, centProjs, seedProjs := glbProj.vars, glbProj.centProjs, glbProj.seedProjs
 
 	var wg sync.WaitGroup
 	subRecs := make([][][]string, len(centMats))
@@ -173,31 +170,30 @@ func exportDistances(seeds []*seedT, path string) (
 	}
 	writeCSV(w, records)
 
-	okP = true
-	return okP, vars, centProjs, seedProjs
+	return
 }
 
-func exportCoor(vars []float64, centProjs, seedProjs []*mat.Dense, path string) {
+func exportCoor(glbProj globalProjection, path string) {
 	ok, w := makeCSVFile(path)
 	if !ok {
 		return
 	}
 
 	header := []string{"kind", "index"}
-	for i := range vars {
+	for i := range glbProj.vars {
 		header = append(header, fmt.Sprintf("pc%d", i))
 	}
 	records := [][]string{header}
 
 	// a. Export variances
 	varsStrs := []string{"variance", "0"}
-	for _, v := range vars {
+	for _, v := range glbProj.vars {
 		varsStrs = append(varsStrs, fmt.Sprintf("%f", v))
 	}
 	records = append(records, varsStrs)
 	// b. Export centers' coordinates
 	rrv := func(m *mat.Dense) []float64 { return m.RawRowView(0) }
-	for i, c := range centProjs {
+	for i, c := range glbProj.centProjs {
 		strs := []string{"center", fmt.Sprintf("%d", i)}
 		for _, v := range rrv(c) {
 			strs = append(strs, fmt.Sprintf("%f", v))
@@ -205,7 +201,7 @@ func exportCoor(vars []float64, centProjs, seedProjs []*mat.Dense, path string) 
 		records = append(records, strs)
 	}
 	// c. Export seeds' coordinates
-	for i, s := range seedProjs {
+	for i, s := range glbProj.seedProjs {
 		strs := []string{"seed", fmt.Sprintf("%d", i)}
 		for _, v := range rrv(s) {
 			strs = append(strs, fmt.Sprintf("%f", v))

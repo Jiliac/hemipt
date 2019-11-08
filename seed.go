@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
+
 	"syscall"
 
 	"gonum.org/v1/gonum/mat"
@@ -61,7 +63,7 @@ func getPCA(seed *seedT) (ok bool, pca *dynamicPCA) {
 	return ok, pca
 }
 
-func doGlbProjection(seeds []*seedT) globalProjection {
+func doGlbProjection(seeds []*seedT) (bool, globalProjection) {
 	var (
 		pcas                 []*dynamicPCA
 		cleanedSeeds         []*seedT
@@ -78,13 +80,14 @@ func doGlbProjection(seeds []*seedT) globalProjection {
 	}
 	if len(pcas) == 0 {
 		log.Println("No PCA found?")
-		return globalProjection{}
+		return false, globalProjection{}
 	}
+	fmt.Printf("len(seeds), len(pcas): %d, %d\n", len(seeds), len(pcas))
 
 	mb := doMergeBasis(pcas)
 	if mb.glbBasis == nil { // Means there was an error.
 		log.Println("Problem computing the global basis.")
-		return globalProjection{}
+		return false, globalProjection{}
 	}
 
 	for i, pca := range pcas {
@@ -102,7 +105,7 @@ func doGlbProjection(seeds []*seedT) globalProjection {
 		centProjs, seedProjs = append(centProjs, cProj), append(seedProjs, sProj)
 	}
 
-	return globalProjection{
+	return true, globalProjection{
 		pcas:         pcas,
 		cleanedSeeds: cleanedSeeds,
 		mergedBasis:  mb,

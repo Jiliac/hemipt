@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"sync"
 )
 
@@ -41,47 +40,6 @@ func getSeedTrace(threads []*thread, seeds []*seedT) (traces [][]byte) {
 	}
 
 	return traces
-}
-
-// *****************************************************************************
-// ******************************* Debug/Test **********************************
-
-func analyzeExecs(outDir string, seeds []*seedT, traces [][]byte) {
-	fmt.Println("")
-	pcas := getPCAs(getPCAFits(seeds))
-	fmt.Printf("len(seeds), len(pcas): %d, %d\n", len(seeds), len(pcas))
-
-	exportHistos(pcas, filepath.Join(outDir, "histos.csv"))
-	exportProjResults(pcas, filepath.Join(outDir, "pcas.csv"))
-	ok, vars, centProjs, seedProjs :=
-		exportDistances(seeds, filepath.Join(outDir, "distances.csv"))
-	if ok {
-		exportCoor(vars, centProjs, seedProjs, filepath.Join(outDir, "coords.csv"))
-	}
-}
-func getPCAFits(seeds []*seedT) (pcaFits []*pcaFitFunc) {
-	for _, seed := range seeds {
-		df := seed.exec.discoveryFit
-		if ff, ok := df.(fitnessMultiplexer); ok {
-			for _, ffi := range ff {
-				if pcaFit, ok := ffi.(*pcaFitFunc); ok {
-					pcaFits = append(pcaFits, pcaFit)
-				}
-			}
-		} else if pcaFit, ok := df.(*pcaFitFunc); ok {
-			pcaFits = append(pcaFits, pcaFit)
-		}
-	}
-	return pcaFits
-}
-func getPCAs(pcaFits []*pcaFitFunc) (pcas []*dynamicPCA) {
-	for _, f := range pcaFits {
-		if f.dynpca == nil || !f.dynpca.phase4 {
-			continue
-		}
-		pcas = append(pcas, f.dynpca)
-	}
-	return pcas
 }
 
 // *****************************************************************************
