@@ -47,6 +47,7 @@ func main() {
 	// ** Test **
 	traces := getSeedTrace(threads, seeds)
 	analyzeExecs(config.outDir, seeds, traces)
+	saveSeeds(config.outDir, seeds)
 
 	for _, t := range threads {
 		t.clean()

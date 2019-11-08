@@ -5,7 +5,9 @@ import (
 	"log"
 
 	"encoding/csv"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"gonum.org/v1/gonum/mat"
@@ -269,4 +271,29 @@ func exportCoor(vars []float64, centProjs, seedProjs []*mat.Dense, path string) 
 	}
 
 	writeCSV(w, records)
+}
+
+// *****************************************************************************
+// *************************** Save Seeds on Disk ******************************
+
+func saveSeeds(outDir string, seeds []*seedT) {
+	dir := filepath.Join(outDir, "seeds")
+	err := os.Mkdir(dir, 0755)
+	if err != nil {
+		log.Printf("Couldn't create seed directory: %v.\n", err)
+		return
+	}
+
+	for i, seed := range seeds {
+		in := seed.input
+		if seed.hash == 0 {
+			fmt.Printf("Seed %d has a nil hash? (len=%d)\n", i, len(in))
+			continue
+		}
+		path := filepath.Join(dir, fmt.Sprintf("%x", seed.hash))
+		err := ioutil.WriteFile(path, in, 0644)
+		if err != nil {
+			log.Printf("Couldn't write seed %d: %v.\n", i, err)
+		}
+	}
 }
