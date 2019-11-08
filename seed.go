@@ -85,7 +85,7 @@ func doGlbProjection(seeds []*seedT) (bool, globalProjection) {
 	fmt.Printf("len(seeds), len(pcas): %d, %d\n", len(seeds), len(pcas))
 
 	mb := doMergeBasis(pcas)
-	if mb.glbBasis == nil { // Means there was an error.
+	if mb.basis == nil { // Means there was an error.
 		log.Println("Problem computing the global basis.")
 		return false, globalProjection{}
 	}
@@ -100,8 +100,8 @@ func doGlbProjection(seeds []*seedT) (bool, globalProjection) {
 		centMats, seedMats = append(centMats, c), append(seedMats, s)
 		//
 		cProj, sProj := new(mat.Dense), new(mat.Dense)
-		cProj.Mul(c, mb.glbBasis)
-		sProj.Mul(s, mb.glbBasis)
+		cProj.Mul(c, mb.basis)
+		sProj.Mul(s, mb.basis)
 		centProjs, seedProjs = append(centProjs, cProj), append(seedProjs, sProj)
 	}
 

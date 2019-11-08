@@ -573,9 +573,9 @@ func euclideanDist(mup, muq []float64) (dist float64) {
 // ****************************** Merge Basis **********************************
 
 type mergedBasis struct {
-	centers  []float64
-	vars     []float64
-	glbBasis *mat.Dense
+	centers []float64
+	basis   *mat.Dense
+	vars    []float64
 }
 
 func doMergeBasis(pcas []*dynamicPCA) mergedBasis {
@@ -682,7 +682,7 @@ func doMergeBasis(pcas []*dynamicPCA) mergedBasis {
 		fmt.Printf("Loss at merging: %.2f%%\n", 100-100*inVar/totVar)
 	}
 
-	return mergedBasis{glbCenters, vars, glbBasis}
+	return mergedBasis{glbCenters, glbBasis, vars}
 }
 
 func choseWeightThreshold(weights []float64) float64 {

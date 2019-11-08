@@ -12,9 +12,10 @@ import (
 func fuzzLoop(threads []*thread, seedInputs [][]byte) (seeds []*seedT) {
 	fitChan := make(chan runT, 1000)
 	sched := newScheduler(threads, seedInputs, fitChan)
-	makeGlbFitness(fitChan, sched.newSeedChan)
+	stopChan := makeGlbFitness(fitChan, sched.newSeedChan)
 
 	seeds = <-sched.seedsChan
+	stopChan <- struct{}{}
 	return seeds
 }
 

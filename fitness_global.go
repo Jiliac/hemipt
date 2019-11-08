@@ -25,15 +25,18 @@ func init() {
 type globalFitness struct {
 	*brCovFitFunc
 
-	ticker *time.Ticker
+	ticker   *time.Ticker
+	stopChan chan struct{}
 }
 
-func makeGlbFitness(fitChan chan runT, newSeedChan chan *seedT) {
+func makeGlbFitness(fitChan chan runT, newSeedChan chan *seedT) chan struct{} {
 	glbFit := globalFitness{
 		brCovFitFunc: newBrCovFitFunc(),
 		ticker:       time.NewTicker(printTickT),
+		stopChan:     make(chan struct{}),
 	}
 	go glbFit.listen(fitChan, newSeedChan)
+	return glbFit.stopChan
 }
 
 func (glbFit globalFitness) listen(fitChan chan runT, newSeedChan chan *seedT) {
@@ -43,6 +46,9 @@ func (glbFit globalFitness) listen(fitChan chan runT, newSeedChan chan *seedT) {
 	for fuzzContinue {
 		select {
 		case _ = <-sigChan:
+			fuzzContinue = false
+			break
+		case _ = <-glbFit.stopChan:
 			fuzzContinue = false
 			break
 		case _ = <-glbFit.ticker.C:

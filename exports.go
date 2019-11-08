@@ -127,6 +127,7 @@ func exportDistances(seeds []*seedT, glbProj globalProjection, path string) {
 			sqNorm := pcas[i].stats.sqNorm / float64(pcas[i].sampleN)
 			covMat, _, _ := inverseMat(pcas[i])
 			det, _ := mat.LogDet(covMat)
+			hash := glbProj.cleanedSeeds[i].hash
 			subRecs[i] = [][]string{
 				[]string{i1, i1, "s2c_full_eucli", fmt.Sprintf("%f", euclideanDist(
 					rrv(seedMats[i]), rrv(centMats[i])))},
@@ -136,7 +137,16 @@ func exportDistances(seeds []*seedT, glbProj globalProjection, path string) {
 					rrv(seedProjs[i]), rrv(centProjs[i]), vars))},
 				[]string{i1, i1, "sq_norm", fmt.Sprintf("%f", sqNorm)},
 				[]string{i1, i1, "log_det", fmt.Sprintf("%f", det)},
+				[]string{i1, i1, "hash", fmt.Sprintf("%x", hash)},
 			}
+
+			virtPoint := &dynamicPCA{
+				sampleN: 1,
+				covMat:  idMat(len(vars)),
+				basis:   glbProj.basis,
+				centers: pcas[i].centers,
+			}
+
 			for j := i + 1; j < len(centMats); j++ {
 				i2 := fmt.Sprintf("%d", j)
 				subRecs[i] = append(subRecs[i], [][]string{
@@ -158,6 +168,13 @@ func exportDistances(seeds []*seedT, glbProj globalProjection, path string) {
 						klDiv(pcas[j], pcas[i]))},
 				}...)
 			}
+			for j := 0; j < len(centMats); j++ {
+				i2 := fmt.Sprintf("%d", j)
+				subRecs[i] = append(subRecs[i], []string{i1, i2, "virtual_div",
+					fmt.Sprintf("%f", klDiv(pcas[j], virtPoint))})
+				subRecs[i] = append(subRecs[i], []string{i1, i2, "virtual_div_rev",
+					fmt.Sprintf("%f", klDiv(virtPoint, pcas[j]))})
+			}
 
 			wg.Done()
 		}(i)
@@ -171,6 +188,13 @@ func exportDistances(seeds []*seedT, glbProj globalProjection, path string) {
 	writeCSV(w, records)
 
 	return
+}
+func idMat(n int) *mat.Dense {
+	m := mat.NewDense(n, n, nil)
+	for i := 0; i < n; i++ {
+		m.Set(i, i, 1)
+	}
+	return m
 }
 
 func exportCoor(glbProj globalProjection, path string) {
