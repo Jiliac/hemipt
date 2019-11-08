@@ -30,18 +30,6 @@ var (
 	helloChildS = helloChildA[:]
 )
 
-type runT struct {
-	input []byte
-
-	sig     syscall.Signal
-	status  syscall.WaitStatus
-	crashed bool
-	hanged  bool
-
-	trace []byte // Only used if is fit.
-	hash  uint64
-}
-
 func (put *aflPutT) run(testCase []byte) (runInfo runT, err error) {
 	zeroShm(put.trace)
 

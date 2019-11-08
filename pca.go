@@ -572,7 +572,13 @@ func euclideanDist(mup, muq []float64) (dist float64) {
 // *****************************************************************************
 // ****************************** Merge Basis **********************************
 
-func mergeBasis(pcas []*dynamicPCA) (glbCenters, vars []float64, glbBasis *mat.Dense) {
+type mergedBasis struct {
+	centers  []float64
+	vars     []float64
+	glbBasis *mat.Dense
+}
+
+func doMergeBasis(pcas []*dynamicPCA) mergedBasis {
 	var (
 		totDim    int
 		weights   []float64
@@ -583,7 +589,7 @@ func mergeBasis(pcas []*dynamicPCA) (glbCenters, vars []float64, glbBasis *mat.D
 	)
 
 	// ** 1. Compute centers **
-	glbCenters = make([]float64, mapSize)
+	glbCenters := make([]float64, mapSize)
 	pcaN := float64(len(pcas))
 	for i := range glbCenters {
 		for _, pca := range pcas {
@@ -641,15 +647,15 @@ func mergeBasis(pcas []*dynamicPCA) (glbCenters, vars []float64, glbBasis *mat.D
 	ok := pc.PrincipalComponents(m, weights)
 	if !ok {
 		log.Print("Couldn't do PCA on basis.")
-		return
+		return mergedBasis{}
 	}
 	//
 	vecs := new(mat.Dense)
 	pc.VectorsTo(vecs)
 	//
-	glbBasis = mat.DenseCopyOf(vecs.Slice(0, mapSize, 0, pcaInitDim))
+	glbBasis := mat.DenseCopyOf(vecs.Slice(0, mapSize, 0, pcaInitDim))
 	//
-	vars = make([]float64, pcaInitDim)
+	vars := make([]float64, pcaInitDim)
 	for _, pca := range pcas {
 		changeBasisM, newCovMat := new(mat.Dense), new(mat.Dense)
 		changeBasisM.Mul(pca.basis.T(), glbBasis)
@@ -676,7 +682,7 @@ func mergeBasis(pcas []*dynamicPCA) (glbCenters, vars []float64, glbBasis *mat.D
 		fmt.Printf("Loss at merging: %.2f%%\n", 100-100*inVar/totVar)
 	}
 
-	return glbCenters, vars, glbBasis
+	return mergedBasis{glbCenters, vars, glbBasis}
 }
 
 func choseWeightThreshold(weights []float64) float64 {

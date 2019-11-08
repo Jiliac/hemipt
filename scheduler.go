@@ -10,14 +10,6 @@ import (
 
 const fuzzRoundN = 5
 
-type seedT struct {
-	runT
-
-	execN   int
-	running bool
-
-	exec *executor
-}
 type scheduler struct {
 	// Global fitness send new seeds there.
 	newSeedChan chan *seedT

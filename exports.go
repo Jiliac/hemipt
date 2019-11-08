@@ -115,44 +115,10 @@ func exportDistances(seeds []*seedT, path string) (
 		return
 	}
 
-	// ** 1. Prepare trace and project them **
-	var (
-		pcas               []*dynamicPCA
-		cleanedSeeds       []*seedT
-		centMats, seedMats []*mat.Dense
-	)
-	for _, seed := range seeds {
-		ok, pca := getPCA(seed)
-		if ok {
-			pcas = append(pcas, pca)
-			cleanedSeeds = append(cleanedSeeds, seed)
-		}
-	}
-	if len(pcas) == 0 {
-		log.Println("No PCA found?")
-		return
-	}
-	centers, vars, glbBasis := mergeBasis(pcas)
-	if glbBasis == nil { // Means there was an error.
-		log.Println("Problem computing the global basis.")
-		return
-	}
-	for i, pca := range pcas {
-		c, s := mat.NewDense(1, mapSize, nil), mat.NewDense(1, mapSize, nil)
-		seed := cleanedSeeds[i]
-		for j, tr := range seed.trace {
-			c.Set(0, j, pca.centers[j]-centers[j])
-			s.Set(0, j, logVals[tr]-centers[j])
-		}
-		centMats, seedMats = append(centMats, c), append(seedMats, s)
-		//
-		cProj, sProj := new(mat.Dense), new(mat.Dense)
-		cProj.Mul(c, glbBasis)
-		sProj.Mul(s, glbBasis)
-		centProjs, seedProjs = append(centProjs, cProj), append(seedProjs, sProj)
-	}
+	glbProj := doGlbProjection(seeds)
+	pcas, centMats, seedMats := glbProj.pcas, glbProj.centMats, glbProj.seedMats
+	vars, centProjs, seedProjs = glbProj.vars, glbProj.centProjs, glbProj.seedProjs
 
-	// ** 2. Compute distances and record them **
 	var wg sync.WaitGroup
 	subRecs := make([][][]string, len(centMats))
 	rrv := func(m *mat.Dense) []float64 { return m.RawRowView(0) }
@@ -209,29 +175,6 @@ func exportDistances(seeds []*seedT, path string) (
 
 	okP = true
 	return okP, vars, centProjs, seedProjs
-}
-
-func getPCA(seed *seedT) (ok bool, pca *dynamicPCA) {
-	if seed == nil || seed.exec == nil {
-		return
-	}
-	//
-	df := seed.exec.discoveryFit
-	var pcaFF *pcaFitFunc
-	if ff, okConv := df.(fitnessMultiplexer); okConv {
-		for _, ffi := range ff {
-			if pcaFit, okConv := ffi.(*pcaFitFunc); okConv {
-				pcaFF = pcaFit
-			}
-		}
-	} else if pcaFit, okConv := df.(*pcaFitFunc); okConv {
-		pcaFF = pcaFit
-	}
-	if pcaFF != nil && pcaFF.dynpca != nil && pcaFF.dynpca.phase4 {
-		ok = true
-		pca = pcaFF.dynpca
-	}
-	return ok, pca
 }
 
 func exportCoor(vars []float64, centProjs, seedProjs []*mat.Dense, path string) {

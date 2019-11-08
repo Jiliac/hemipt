@@ -8,8 +8,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sync"
-
-	"gonum.org/v1/gonum/mat"
 )
 
 func fuzzLoop(threads []*thread, seedInputs [][]byte) (seeds []*seedT) {
@@ -52,7 +50,6 @@ func analyzeExecs(outDir string, seeds []*seedT, traces [][]byte) {
 	fmt.Println("")
 	pcas := getPCAs(getPCAFits(seeds))
 	fmt.Printf("len(seeds), len(pcas): %d, %d\n", len(seeds), len(pcas))
-	//seedDists(pcas, traces)
 
 	exportHistos(pcas, filepath.Join(outDir, "histos.csv"))
 	exportProjResults(pcas, filepath.Join(outDir, "pcas.csv"))
@@ -85,52 +82,6 @@ func getPCAs(pcaFits []*pcaFitFunc) (pcas []*dynamicPCA) {
 		pcas = append(pcas, f.dynpca)
 	}
 	return pcas
-}
-func compareHashes(hashes1, hashes2 map[uint64]struct{}) {
-	l1, l2 := len(hashes1), len(hashes2)
-	var common int
-	for hash := range hashes1 {
-		if _, ok := hashes2[hash]; ok {
-			common++
-		}
-	}
-	fmt.Printf("Seed hashes\tl1: %d\tl2: %d\tcommon: %d\n", l1, l2, common)
-}
-func seedDists(pcas []*dynamicPCA, traces [][]byte) {
-	centers, vars, glbBasis := mergeBasis(pcas)
-	if glbBasis == nil { // Means there was an error.
-		return
-	}
-	fmt.Printf("vars: %.3v\n", vars)
-
-	var traceMats []*mat.Dense
-	for _, trace := range traces {
-		m := mat.NewDense(1, mapSize, nil)
-		for i, tr := range trace {
-			v := logVals[tr]
-			v -= centers[i]
-			m.Set(0, i, v)
-		}
-		traceMats = append(traceMats, m)
-	}
-
-	var projs [][]float64
-	for _, m := range traceMats {
-		proj := new(mat.Dense)
-		proj.Mul(m, glbBasis)
-		projs = append(projs, proj.RawRowView(0))
-	}
-
-	a, b := 0, 1
-	orgDist := euclideanDist(traceMats[a].RawRowView(0), traceMats[b].RawRowView(0))
-	eDist := euclideanDist(projs[a], projs[b])
-	mDist := mahaDist(projs[a], projs[b], vars)
-	fmt.Printf("orgDist, eDist, mDist = %.3v, %.3v, %.3v\n", orgDist, eDist, mDist)
-	a, b = 2, 3
-	orgDist = euclideanDist(traceMats[a].RawRowView(0), traceMats[b].RawRowView(0))
-	eDist = euclideanDist(projs[a], projs[b])
-	mDist = mahaDist(projs[a], projs[b], vars)
-	fmt.Printf("orgDist, eDist, mDist = %.3v, %.3v, %.3v\n", orgDist, eDist, mDist)
 }
 
 // *****************************************************************************
