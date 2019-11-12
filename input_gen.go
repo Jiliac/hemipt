@@ -24,8 +24,6 @@ func (sc seedCopier) generate() []byte { return []byte(sc) }
 // *****************************************************************************
 // **************************** Ratio Mutator **********************************
 
-const chunkSize = 1024
-
 type ratioMutator struct {
 	r      *rand.Rand
 	ratio  float64
@@ -41,6 +39,7 @@ func makeRatioMutator(seedIn []byte, ratio float64) ratioMutator {
 }
 
 func (rMut ratioMutator) generate() (testCase []byte) {
+	const chunkSize = 1024
 	n := len(rMut.seedIn)
 	testCase = make([]byte, n)
 	chunkN := n / chunkSize

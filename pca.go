@@ -21,18 +21,6 @@ import (
 // Phase 3 (short): collect data to rotate the basis.
 // Phase 4 (indefinite): full DynPCA algorithm. rotate and add new axis.
 
-const (
-	pcaInitDim = 10
-
-	// Phase 2
-	phase2Dur = time.Second
-	// Phase 3
-	phase3Dur     = phase2Dur
-	convCritFloor = 0.05 // Floor to apply rotation.
-
-	bucketSensitiveness = 5
-)
-
 type dynamicPCA struct {
 	// Y = (X-center)' * basis
 	centers [mapSize]float64

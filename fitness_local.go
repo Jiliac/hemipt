@@ -102,11 +102,6 @@ func (fitFunc *brCovFitFunc) String() string {
 // blackbox mode). If/when expanded to future usage, may need significant
 // modification or even just rewriting all.
 
-const (
-	pcaInitTime  = 2 * time.Second
-	initQueueMax = 100
-)
-
 type pcaFitFunc struct {
 	// Init
 	initializing bool

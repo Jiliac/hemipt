@@ -8,8 +8,6 @@ import (
 	"time"
 )
 
-const fuzzRoundN = 5
-
 type scheduler struct {
 	// Global fitness send new seeds there.
 	newSeedChan chan *seedT

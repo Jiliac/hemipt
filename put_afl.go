@@ -618,8 +618,6 @@ func listChildren(pid int) (childrenPids []int) {
 // *****************************************************************************
 // *************************** CPU Affinity Managing ***************************
 
-const deactivateHyperthread = true
-
 var getCPUMtx sync.Mutex
 
 func lockRoutine() (bool, int) {

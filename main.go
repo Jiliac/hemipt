@@ -13,8 +13,6 @@ import (
 	"time"
 )
 
-const printTickT = 3 * time.Second
-
 func init() {
 	randSeed := time.Now().UTC().UnixNano()
 	rand.Seed(randSeed)
