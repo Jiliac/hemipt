@@ -69,7 +69,9 @@ func newBrCovFitFunc() *brCovFitFunc {
 }
 
 func (fitFunc *brCovFitFunc) isFit(runInfo runT) (fit bool) {
+	// This one is just for log. Could/should delete for performance.
 	fitFunc.hashes[runInfo.hash] = struct{}{}
+
 	fitFunc.execN++
 
 	trace := runInfo.trace
@@ -108,7 +110,8 @@ type pcaFitFunc struct {
 	initTimer    *time.Timer
 	queue        [][]byte
 
-	hashes map[uint64]struct{}
+	hashes  map[uint64]struct{}
+	hashesF map[uint64]byte
 
 	dynpca *dynamicPCA
 }
@@ -118,6 +121,7 @@ func newPCAFitFunc() *pcaFitFunc {
 		initializing: true,
 		initTimer:    time.NewTimer(pcaInitTime),
 		hashes:       make(map[uint64]struct{}),
+		hashesF:      make(map[uint64]byte),
 	}
 	return pff
 }
@@ -133,6 +137,7 @@ func (pff *pcaFitFunc) isFit(runInfo runT) (fit bool) {
 		}
 	}
 
+	pff.logFreq(runInfo.hash) // For experiment
 	if pff.initializing {
 		if _, ok := pff.hashes[runInfo.hash]; !ok {
 			pff.queue = append(pff.queue, runInfo.trace)
@@ -147,6 +152,18 @@ func (pff *pcaFitFunc) isFit(runInfo runT) (fit bool) {
 	pff.dynpca.newSample(runInfo.trace)
 
 	return fit
+}
+func (pff *pcaFitFunc) logFreq(hash uint64) {
+	if useEvoA {
+		return
+	}
+
+	if _, ok := pff.hashesF[hash]; !ok {
+		pff.hashesF[hash] = 0
+	}
+	if pff.hashesF[hash] != 0xff {
+		pff.hashesF[hash]++
+	}
 }
 
 func (pff *pcaFitFunc) endInit() {

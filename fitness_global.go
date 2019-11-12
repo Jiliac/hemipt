@@ -55,7 +55,9 @@ func (glbFit globalFitness) listen(fitChan chan runT, newSeedChan chan *seedT) {
 			fmt.Printf("Global fitness: %v.\n", glbFit.brCovFitFunc)
 
 		case runInfo := <-fitChan:
-			if glbFit.isFit(runInfo) {
+			if !useEvoA {
+				glbFit.isFit(runInfo)
+			} else if glbFit.isFit(runInfo) {
 				newSeedChan <- &seedT{runT: runInfo}
 			}
 		}

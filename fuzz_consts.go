@@ -7,8 +7,13 @@ import (
 const (
 	// ****************
 	// ** Scheduling **
-	roundTime  = 5 * time.Second
-	fuzzRoundN = 5
+	roundTime      = 5 * time.Second
+	fuzzRoundNBase = 5
+
+	// *****************************
+	// ** Evolutionnary Algorithm **
+	// Turn evolutionnary algorithm off for experiment.
+	useEvoA = false
 
 	// *****************************************
 	// ** pcaFitFunc initialization constants **
@@ -39,3 +44,11 @@ const (
 	// ** System **
 	deactivateHyperthread = true
 )
+
+var fuzzRoundN = fuzzRoundNBase
+
+func init() {
+	if !useEvoA {
+		fuzzRoundN *= 3
+	}
+}
