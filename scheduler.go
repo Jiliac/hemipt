@@ -61,7 +61,7 @@ func (sched *scheduler) schedule(fitChan chan runT, threadRunningN int) {
 
 		case newSeed := <-sched.newSeedChan:
 			newSeed.exec = &executor{
-				ig:             makeRatioMutator(newSeed.input, 1.0/100),
+				ig:             makeRatioMutator(newSeed.input, mutationRatio),
 				securityPolicy: falseFitFunc{},
 				fitChan:        fitChan,
 				crashChan:      devNullFitChan,
@@ -127,11 +127,16 @@ func (sched scheduler) execSeed(t *thread, seed *seedT) {
 }
 
 func printStatus(seeds []*seedT) {
-	var cnt int
+	var cnt, totExecN int
 	for _, seed := range seeds {
 		if seed.execN >= fuzzRoundN {
 			cnt++
+			totExecN += seed.execN
 		}
 	}
-	fmt.Printf("Fuzzed seeds: %d/%d\n", cnt, len(seeds))
+
+	goal := fuzzRoundN * len(seeds)
+	progress := 100 * float64(totExecN) / float64(goal)
+	fmt.Printf("Fuzzed seeds: %d/%d\tprogress: %d/%d (%.1f%%)\n",
+		cnt, len(seeds), totExecN, goal, progress)
 }

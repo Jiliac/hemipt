@@ -10,6 +10,10 @@ const (
 	roundTime      = 5 * time.Second
 	fuzzRoundNBase = 5
 
+	// **********************
+	// ** Input Generation **
+	mutationRatio = 1.0 / 100
+
 	// *****************************************
 	// ** pcaFitFunc initialization constants **
 	pcaInitTime  = 2 * time.Second
@@ -49,6 +53,6 @@ var fuzzRoundN = fuzzRoundNBase
 
 func init() {
 	if logFreq {
-		fuzzRoundN *= 10
+		fuzzRoundN = 60 // 5 minutes on each seed.
 	}
 }
