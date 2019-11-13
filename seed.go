@@ -40,6 +40,23 @@ type globalProjection struct {
 	centProjs, seedProjs []*mat.Dense
 }
 
+func getPCAFF(seed *seedT) (ok bool, pcaFF *pcaFitFunc) {
+	if seed == nil || seed.exec == nil {
+		return
+	}
+	//
+	df := seed.exec.discoveryFit
+	if ff, okConv := df.(fitnessMultiplexer); okConv {
+		for _, ffi := range ff {
+			if pcaFit, okConv := ffi.(*pcaFitFunc); okConv {
+				ok, pcaFF = true, pcaFit
+			}
+		}
+	} else if pcaFit, okConv := df.(*pcaFitFunc); okConv {
+		ok, pcaFF = true, pcaFit
+	}
+	return ok, pcaFF
+}
 func getPCA(seed *seedT) (ok bool, pca *dynamicPCA) {
 	if seed == nil || seed.exec == nil {
 		return
