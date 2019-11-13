@@ -154,7 +154,7 @@ func (pff *pcaFitFunc) isFit(runInfo runT) (fit bool) {
 	return fit
 }
 func (pff *pcaFitFunc) logFreq(hash uint64) {
-	if useEvoA {
+	if !logFreq {
 		return
 	}
 

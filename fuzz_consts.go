@@ -10,11 +10,6 @@ const (
 	roundTime      = 5 * time.Second
 	fuzzRoundNBase = 5
 
-	// *****************************
-	// ** Evolutionnary Algorithm **
-	// Turn evolutionnary algorithm off for experiment.
-	useEvoA = false
-
 	// *****************************************
 	// ** pcaFitFunc initialization constants **
 	pcaInitTime  = 2 * time.Second
@@ -43,12 +38,17 @@ const (
 	// ************
 	// ** System **
 	deactivateHyperthread = true
+
+	// *****************
+	// ** Experiments **
+	useEvoA = true // Turn evolutionnary algorithm off for experiment.
+	logFreq = true
 )
 
 var fuzzRoundN = fuzzRoundNBase
 
 func init() {
-	if !useEvoA {
-		fuzzRoundN *= 3
+	if logFreq {
+		fuzzRoundN *= 10
 	}
 }

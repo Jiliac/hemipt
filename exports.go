@@ -183,7 +183,24 @@ func exportDistances(glbProj globalProjection, path string) {
 					[]string{i2, i1, "divergence", fmt.Sprintf("%f",
 						klDiv(pcas[j], pcas[i]))},
 				}...)
+				//
+				if !logFreq {
+					continue
+				}
+				oki, ffi := getPCAFF(glbProj.cleanedSeeds[i])
+				okj, ffj := getPCAFF(glbProj.cleanedSeeds[j])
+				if !oki || !okj {
+					log.Println("Skip MLE divergence.")
+					continue
+				}
+				subRecs[i] = append(subRecs[i], [][]string{
+					[]string{i1, i2, "mle_divergence", fmt.Sprintf("%f",
+						computeMLEDiv(ffi.hashesF, ffj.hashesF))},
+					[]string{i2, i1, "mle_divergence", fmt.Sprintf("%f",
+						computeMLEDiv(ffj.hashesF, ffi.hashesF))},
+				}...)
 			}
+
 			for j := 0; j < len(centMats); j++ {
 				i2 := fmt.Sprintf("%d", j)
 				subRecs[i] = append(subRecs[i], []string{i1, i2, "virtual_div",
