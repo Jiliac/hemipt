@@ -29,16 +29,15 @@ func computeMLEDiv(hashesP, hashesQ map[uint64]byte) (div float64) {
 	// ** Prepare data **
 	// This data could be kept live, but at a high cost. Since this is just for
 	// some experiments, rather keep this as a fixed cost on post-processing.
+	const nearZero float64 = 0.1
 	var frequences [0x100][0x100]int
 	var totP, totQ int
 	for hash, fp := range hashesP {
+		totP += int(fp)
 		if fq, ok := hashesQ[hash]; ok {
-			totP += int(fp)
 			frequences[fp][fq]++
 		} else {
-			// @TODO: how to handle zeros??
-			//totP += int(fp)
-			//frequences[fp][0]++
+			frequences[fp][0]++
 		}
 	}
 	for _, fq := range hashesQ {
@@ -53,7 +52,8 @@ func computeMLEDiv(hashesP, hashesQ map[uint64]byte) (div float64) {
 			if n == 0 {
 				continue
 			}
-			div += float64(n*fp) * math.Log(float64(fp)/float64(fq))
+			p, q := float64(fp)+nearZero, float64(fq)+nearZero
+			div += float64(n) * p * math.Log(p/q)
 		}
 	}
 	div /= float64(totP)
