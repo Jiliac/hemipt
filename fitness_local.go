@@ -158,10 +158,9 @@ func (pff *pcaFitFunc) logFreq(hash uint64) {
 		return
 	}
 
-	if _, ok := pff.hashesF[hash]; !ok {
-		pff.hashesF[hash] = 0
-	}
-	if pff.hashesF[hash] != 0xff {
+	if f, ok := pff.hashesF[hash]; !ok {
+		pff.hashesF[hash] = 1
+	} else if f != 0xff {
 		pff.hashesF[hash]++
 	}
 }
