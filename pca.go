@@ -716,8 +716,10 @@ const (
 // Obviously this a type conversion necessary. But more importantly, the
 // preparation will need to compute the global center, and then shift all the
 // basis!
+// Will also need to diagonalize the basis and remove basis with near zero
+// variance.
 
-func mergedBasisBis(basisSlice []mergedBasis) (bool, mergedBasis) {
+func doMergeBasisBis(basisSlice []mergedBasis, targetDim int) (bool, mergedBasis) {
 	if len(basisSlice) == 0 {
 		fmt.Println("Cannot merge empty slice of basis")
 		return false, mergedBasis{}
@@ -736,18 +738,17 @@ func mergedBasisBis(basisSlice []mergedBasis) (bool, mergedBasis) {
 		//
 		l := len(basisSlice)
 		half := l / 2
-		ok1, m1 := mergedBasisBis(basisSlice[0:half])
-		ok2, m2 := mergedBasisBis(basisSlice[half:l])
+		ok1, m1 := doMergeBasisBis(basisSlice[0:half], targetDim)
+		ok2, m2 := doMergeBasisBis(basisSlice[half:l], targetDim)
 		if !ok1 || !ok2 {
 			return false, mergedBasis{}
 		}
-		ok, b := mergedBasisBis([]mergedBasis{m1, m2})
+		ok, b := doMergeBasisBis([]mergedBasis{m1, m2}, targetDim)
 		return ok, b
 	}
 
 	// ************************************
 	// ************ Reduction *************
-	// @TODO: Reduce to very low dimension basis.
 	var (
 		start, end int
 		weights    []float64
@@ -758,7 +759,7 @@ func mergedBasisBis(basisSlice []mergedBasis) (bool, mergedBasis) {
 	for _, basis := range basisSlice {
 		end += basis.dimN
 		tmp := m.Slice(start, end, 0, mapSize).(*mat.Dense)
-		tmp.Copy(basis.basis)
+		tmp.Copy(basis.basis.T())
 		weights = append(weights, basis.vars...)
 		start = end
 	}
@@ -770,9 +771,27 @@ func mergedBasisBis(basisSlice []mergedBasis) (bool, mergedBasis) {
 	}
 	vecs := new(mat.Dense)
 	pc.VectorsTo(vecs)
-	glbBasis := mat.DenseCopyOf(vecs.Slice(0, mapSize, 0, pcaInitDim))
+	glbBasis := mat.DenseCopyOf(vecs.Slice(0, mapSize, 0, targetDim))
 	//
-	// @TODO: variance problem
+	vars := make([]float64, targetDim)
+	for _, basis := range basisSlice {
+		oldCovM := mat.NewDense(basis.dimN, basis.dimN, nil)
+		for i, v := range basis.vars {
+			oldCovM.Set(i, i, v)
+		}
+		//
+		changeBasisM, newCovMat := new(mat.Dense), new(mat.Dense)
+		changeBasisM.Mul(basis.basis.T(), glbBasis)
+		newCovMat.Mul(changeBasisM.T(), oldCovM)
+		newCovMat.Mul(newCovMat, changeBasisM)
+		//
+		for i := range vars {
+			vars[i] += newCovMat.At(i, i)
+		}
+	}
+	for i := range vars {
+		vars[i] /= float64(len(basisSlice))
+	}
 
-	return true, mergedBasis{basis: glbBasis}
+	return true, mergedBasis{basisSlice[0].centers, glbBasis, vars, targetDim}
 }
