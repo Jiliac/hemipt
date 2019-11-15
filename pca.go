@@ -785,27 +785,18 @@ func doMergeBasisBis(basisSlice []mergedBasis, targetDim int) (bool, mergedBasis
 
 	if totDimN > maxPCADimN {
 		if len(basisSlice) == 1 {
-			// @TODO: break a basis in two.
+			// @TODO: split a basis in multiple parts.
+			// Theoritically possible but shouldn't happen ATM.
 			panic("Basis division not implemented")
 		}
 		//
-		l := len(basisSlice)
-		half := l / 2
-		h1, h2 := basisSlice[0:half], basisSlice[half:l]
-		var (
-			wg       sync.WaitGroup
-			ok1, ok2 bool
-			m1, m2   mergedBasis
-		)
-		wg.Add(2)
-		go func() { ok1, m1 = doMergeBasisBis(h1, targetDim); wg.Done() }()
-		go func() { ok2, m2 = doMergeBasisBis(h2, targetDim); wg.Done() }()
-		wg.Wait()
-		if !ok1 || !ok2 {
+		tasks := prepareTasks(basisSlice)
+		ok, mbs := runTasks(tasks, targetDim)
+		if !ok {
 			return false, mergedBasis{}
 		}
-		ok, b := doMergeBasisBis([]mergedBasis{m1, m2}, targetDim)
-		return ok, b
+		ok, mb := doMergeBasisBis(mbs, targetDim)
+		return ok, mb
 	}
 
 	// ************************************
@@ -847,6 +838,43 @@ func doMergeBasisBis(basisSlice []mergedBasis, targetDim int) (bool, mergedBasis
 	// @TODO: Cut very low dimensions?
 
 	return true, mergedBasis{basisSlice[0].centers, glbBasis, vars, targetDim}
+}
+
+func prepareTasks(basisSlice []mergedBasis) (tasks [][]mergedBasis) {
+	var task []mergedBasis
+	var taskDimN int
+	for _, basis := range basisSlice {
+		if taskDimN+basis.dimN > maxPCADimN {
+			tasks = append(tasks, task)
+			task, taskDimN = nil, 0
+		}
+		taskDimN += basis.dimN
+		task = append(task, basis)
+	}
+	return tasks
+}
+func runTasks(tasks [][]mergedBasis, targetDim int) (ok bool, mbs []mergedBasis) {
+	var wg sync.WaitGroup
+	oks := make([]bool, len(tasks))
+	mbs = make([]mergedBasis, len(tasks))
+	for i, task := range tasks {
+		wg.Add(1)
+		go func(i int, task []mergedBasis) {
+			//
+			oks[i], mbs[i] = doMergeBasisBis(task, targetDim)
+			//
+			wg.Done()
+		}(i, task)
+	}
+	wg.Wait()
+	//
+	ok = true
+	for _, oki := range oks {
+		if !oki {
+			ok = false
+		}
+	}
+	return ok, mbs
 }
 
 func newVarEval(basisSlice []mergedBasis, glbBasis *mat.Dense, vars []float64) (
