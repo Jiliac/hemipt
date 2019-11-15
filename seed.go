@@ -141,5 +141,5 @@ func doGlbProjection(seeds []*seedT) (bool, globalProjection) {
 func varLossEval(basisSlice []mergedBasis, mb mergedBasis) {
 	vars := make([]float64, mb.dimN)
 	loss := newVarEval(basisSlice, mb.basis, vars)
-	fmt.Printf("loss: %.1f%%\n", 100*loss)
+	fmt.Printf("Overall projection loss: %.1f%%\n", 100*loss)
 }

@@ -753,13 +753,13 @@ func prepareMerging(pcas []*dynamicPCA) (basisSlice []mergedBasis) {
 			if newDim != dimN {
 				basis = basis.Slice(0, mapSize, 0, newDim).(*mat.Dense)
 			}
-			for j, c := range glbCenters {
-				diff := c - pca.centers[j]
-				r := basis.RawRowView(j)
-				for k := range r {
-					r[k] += diff
-				}
-			}
+			//for j, c := range glbCenters {
+			//	diff := c - pca.centers[j]
+			//	r := basis.RawRowView(j)
+			//	for k := range r {
+			//		r[k] += diff
+			//	}
+			//}
 
 			basisSlice[i] = mergedBasis{centers: glbCenters, basis: basis,
 				vars: vars[:newDim], dimN: newDim}
@@ -841,7 +841,8 @@ func doMergeBasisBis(basisSlice []mergedBasis, targetDim int) (bool, mergedBasis
 	}
 	//
 	vars := make([]float64, targetDim)
-	newVarEval(basisSlice, glbBasis, vars)
+	loss := newVarEval(basisSlice, glbBasis, vars)
+	fmt.Printf("Intermediary projection loss: %.1f%%\n", 100*loss)
 
 	// @TODO: Cut very low dimensions?
 
