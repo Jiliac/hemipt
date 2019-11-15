@@ -18,7 +18,7 @@ type scheduler struct {
 	seedsChan chan []*seedT
 }
 
-func newScheduler(threads []*thread, seedInputs [][]byte, fitChan chan runT) (
+func newScheduler(threads []*thread, initSeeds []*seedT, fitChan chan runT) (
 	sched *scheduler) {
 
 	sched = &scheduler{
@@ -28,8 +28,8 @@ func newScheduler(threads []*thread, seedInputs [][]byte, fitChan chan runT) (
 	}
 
 	go func() {
-		for _, seedI := range seedInputs {
-			sched.newSeedChan <- &seedT{runT: runT{input: seedI}}
+		for _, seed := range initSeeds {
+			sched.newSeedChan <- seed
 		}
 		for _, t := range threads {
 			r := time.Duration(rand.Intn(700)) + 300

@@ -33,7 +33,7 @@ func makeGlbFitness(fitChan chan runT, newSeedChan chan *seedT) chan struct{} {
 	glbFit := globalFitness{
 		brCovFitFunc: newBrCovFitFunc(),
 		ticker:       time.NewTicker(printTickT),
-		stopChan:     make(chan struct{}),
+		stopChan:     make(chan struct{}, 1),
 	}
 	go glbFit.listen(fitChan, newSeedChan)
 	return glbFit.stopChan

@@ -9,24 +9,14 @@ import (
 	"sync"
 )
 
-func fuzzLoop(threads []*thread, seedInputs [][]byte) (seeds []*seedT) {
-	fitChan := make(chan runT, 1000)
-	sched := newScheduler(threads, seedInputs, fitChan)
-	stopChan := makeGlbFitness(fitChan, sched.newSeedChan)
-
-	seeds = <-sched.seedsChan
-	stopChan <- struct{}{}
-	return seeds
-}
-
-func getSeedTrace(threads []*thread, seeds []*seedT) (traces [][]byte) {
-	traces = make([][]byte, len(seeds))
+func execInitSeed(threads []*thread, seedInputs [][]byte) (initSeeds []*seedT) {
+	initSeeds = make([]*seedT, len(seedInputs))
 	fitChan := make(chan runT, 1)
-	t := threads[0]
+	t := threads[0] // @TODO: For speed, should use all threads, not just one.
 
-	for i, seed := range seeds {
+	for i, input := range seedInputs {
 		e := &executor{
-			ig:             seedCopier(seed.input),
+			ig:             seedCopier(input),
 			discoveryFit:   trueFitFunc{},
 			securityPolicy: falseFitFunc{},
 			fitChan:        fitChan,
@@ -37,10 +27,20 @@ func getSeedTrace(threads []*thread, seeds []*seedT) (traces [][]byte) {
 		t.execChan <- e
 		<-t.endChan
 		runInfo := <-fitChan
-		traces[i] = runInfo.trace
+		initSeeds[i] = &seedT{runT: runInfo}
 	}
 
-	return traces
+	return initSeeds
+}
+
+func fuzzLoop(threads []*thread, initSeeds []*seedT) (seeds []*seedT) {
+	fitChan := make(chan runT, 1000)
+	sched := newScheduler(threads, initSeeds, fitChan)
+	stopChan := makeGlbFitness(fitChan, sched.newSeedChan)
+
+	seeds = <-sched.seedsChan
+	stopChan <- struct{}{}
+	return seeds
 }
 
 // *****************************************************************************

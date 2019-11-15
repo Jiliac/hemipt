@@ -41,10 +41,10 @@ func main() {
 
 	//seedExecTest(threads, seedInputs) // Old test
 
-	seeds := fuzzLoop(threads, seedInputs)
+	initSeeds := execInitSeed(threads, seedInputs)
+	seeds := fuzzLoop(threads, initSeeds)
 	// ** Epilogue **
-	traces := getSeedTrace(threads, seeds)
-	export(config.outDir, seeds, traces)
+	export(config.outDir, seeds)
 	saveSeeds(config.outDir, seeds)
 
 	for _, t := range threads {
@@ -52,7 +52,7 @@ func main() {
 	}
 }
 
-func export(outDir string, seeds []*seedT, traces [][]byte) {
+func export(outDir string, seeds []*seedT) {
 	fmt.Println("")
 	ok, glbProj := doGlbProjection(seeds)
 	if !ok {
