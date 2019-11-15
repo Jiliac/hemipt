@@ -18,6 +18,7 @@ const (
 	// ** pcaFitFunc initialization constants **
 	pcaInitTime  = 2 * time.Second
 	initQueueMax = 100
+	maxPCADimN   = 200
 
 	// ***************************
 	// ** dynamic PCA constants **

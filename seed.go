@@ -106,10 +106,11 @@ func doGlbProjection(seeds []*seedT) (bool, globalProjection) {
 	if ok {
 		ok, mb = doMergeBasisBis([]mergedBasis{mb}, pcaInitDim)
 	}
-	if !ok { // Means there was an error.
+	if !ok { // There was an error.
 		log.Println("Problem computing the global basis.")
 		return false, globalProjection{}
 	}
+	varLossEval(basisSlice, mb) // Verbose
 
 	for i, pca := range pcas {
 		c, s := mat.NewDense(1, mapSize, nil), mat.NewDense(1, mapSize, nil)
@@ -135,4 +136,10 @@ func doGlbProjection(seeds []*seedT) (bool, globalProjection) {
 		centProjs:    centProjs,
 		seedProjs:    seedProjs,
 	}
+}
+
+func varLossEval(basisSlice []mergedBasis, mb mergedBasis) {
+	vars := make([]float64, mb.dimN)
+	loss := newVarEval(basisSlice, mb.basis, vars)
+	fmt.Printf("loss: %.1f%%\n", 100*loss)
 }

@@ -709,17 +709,6 @@ func mahaDist(proj1, proj2, vars []float64) (dist float64) {
 // *****************************************************************************
 // ************************* Recurrent Merge Basis *****************************
 
-const (
-	maxPCADimN = 500
-)
-
-// @TODO: This function will need a preprocessing of the []*dynamicPCA basis.
-// Obviously this a type conversion necessary. But more importantly, the
-// preparation will need to compute the global center, and then shift all the
-// basis!
-// Will also need to diagonalize the basis and remove basis with near zero
-// variance.
-
 func prepareMerging(pcas []*dynamicPCA) (basisSlice []mergedBasis) {
 	// ** 1. Compute centers **
 	glbCenters := make([]float64, mapSize)
@@ -802,8 +791,16 @@ func doMergeBasisBis(basisSlice []mergedBasis, targetDim int) (bool, mergedBasis
 		//
 		l := len(basisSlice)
 		half := l / 2
-		ok1, m1 := doMergeBasisBis(basisSlice[0:half], targetDim)
-		ok2, m2 := doMergeBasisBis(basisSlice[half:l], targetDim)
+		h1, h2 := basisSlice[0:half], basisSlice[half:l]
+		var (
+			wg       sync.WaitGroup
+			ok1, ok2 bool
+			m1, m2   mergedBasis
+		)
+		wg.Add(2)
+		go func() { ok1, m1 = doMergeBasisBis(h1, targetDim); wg.Done() }()
+		go func() { ok2, m2 = doMergeBasisBis(h2, targetDim); wg.Done() }()
+		wg.Wait()
 		if !ok1 || !ok2 {
 			return false, mergedBasis{}
 		}
@@ -844,10 +841,21 @@ func doMergeBasisBis(basisSlice []mergedBasis, targetDim int) (bool, mergedBasis
 	}
 	//
 	vars := make([]float64, targetDim)
+	newVarEval(basisSlice, glbBasis, vars)
+
+	// @TODO: Cut very low dimensions?
+
+	return true, mergedBasis{basisSlice[0].centers, glbBasis, vars, targetDim}
+}
+
+func newVarEval(basisSlice []mergedBasis, glbBasis *mat.Dense, vars []float64) (
+	lossVar float64) {
 	for _, basis := range basisSlice {
+		var totOldVar, totNewVar float64
 		oldCovM := mat.NewDense(basis.dimN, basis.dimN, nil)
 		for i, v := range basis.vars {
 			oldCovM.Set(i, i, v)
+			totOldVar += v
 		}
 		//
 		changeBasisM, newCovMat, tmp := new(mat.Dense), new(mat.Dense), new(mat.Dense)
@@ -856,14 +864,19 @@ func doMergeBasisBis(basisSlice []mergedBasis, targetDim int) (bool, mergedBasis
 		newCovMat.Mul(tmp, changeBasisM)
 		//
 		for i := range vars {
-			vars[i] += newCovMat.At(i, i)
+			v := newCovMat.At(i, i)
+			vars[i] += v
+			totNewVar += v
 		}
+		lossVar += totOldVar - totNewVar
 	}
+
+	var totVar float64
 	for i := range vars {
 		vars[i] /= float64(len(basisSlice))
+		totVar += vars[i]
 	}
-
-	// @TODO: Cut very low dimensions?
-
-	return true, mergedBasis{basisSlice[0].centers, glbBasis, vars, targetDim}
+	lossVar /= float64(len(basisSlice))
+	lossVar /= lossVar + totVar
+	return lossVar
 }
