@@ -129,9 +129,9 @@ func (sched scheduler) execSeed(t *thread, seed *seedT) {
 func printStatus(seeds []*seedT) {
 	var cnt, totExecN int
 	for _, seed := range seeds {
+		totExecN += seed.execN
 		if seed.execN >= fuzzRoundN {
 			cnt++
-			totExecN += seed.execN
 		}
 	}
 
