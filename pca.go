@@ -564,6 +564,7 @@ type mergedBasis struct {
 	centers []float64
 	basis   *mat.Dense
 	vars    []float64
+	dimN    int
 }
 
 func doMergeBasis(pcas []*dynamicPCA) mergedBasis {
@@ -670,7 +671,7 @@ func doMergeBasis(pcas []*dynamicPCA) mergedBasis {
 		fmt.Printf("Loss at merging: %.2f%%\n", 100-100*inVar/totVar)
 	}
 
-	return mergedBasis{glbCenters, glbBasis, vars}
+	return mergedBasis{glbCenters, glbBasis, vars, pcaInitDim}
 }
 
 func choseWeightThreshold(weights []float64) float64 {
@@ -694,10 +695,84 @@ func choseWeightThreshold(weights []float64) float64 {
 	return thresh
 }
 
+// *************
+// *** Other ***
 func mahaDist(proj1, proj2, vars []float64) (dist float64) {
 	for i, p1 := range proj1 {
 		diff := p1 - proj2[i]
 		dist += diff * diff / vars[i]
 	}
 	return math.Sqrt(dist)
+}
+
+// *****************************************************************************
+// ************************* Recurrent Merge Basis *****************************
+
+const (
+	maxPCADimN = 500
+)
+
+// @TODO: This function will need a preprocessing of the []*dynamicPCA basis.
+// Obviously this a type conversion necessary. But more importantly, the
+// preparation will need to compute the global center, and then shift all the
+// basis!
+
+func mergedBasisBis(basisSlice []mergedBasis) (bool, mergedBasis) {
+	if len(basisSlice) == 0 {
+		fmt.Println("Cannot merge empty slice of basis")
+		return false, mergedBasis{}
+	}
+
+	var totDimN int
+	for _, basis := range basisSlice {
+		totDimN += basis.dimN
+	}
+
+	if totDimN > maxPCADimN {
+		if len(basisSlice) == 1 {
+			// @TODO: break a basis in two.
+			panic("Basis division not implemented")
+		}
+		//
+		l := len(basisSlice)
+		half := l / 2
+		ok1, m1 := mergedBasisBis(basisSlice[0:half])
+		ok2, m2 := mergedBasisBis(basisSlice[half:l])
+		if !ok1 || !ok2 {
+			return false, mergedBasis{}
+		}
+		ok, b := mergedBasisBis([]mergedBasis{m1, m2})
+		return ok, b
+	}
+
+	// ************************************
+	// ************ Reduction *************
+	// @TODO: Reduce to very low dimension basis.
+	var (
+		start, end int
+		weights    []float64
+		pc         stat.PC
+	)
+	m := mat.NewDense(totDimN, mapSize, nil)
+
+	for _, basis := range basisSlice {
+		end += basis.dimN
+		tmp := m.Slice(start, end, 0, mapSize).(*mat.Dense)
+		tmp.Copy(basis.basis)
+		weights = append(weights, basis.vars...)
+		start = end
+	}
+
+	okPC := pc.PrincipalComponents(m, weights)
+	if !okPC {
+		log.Println("Couldn't reduce basis")
+		return false, mergedBasis{}
+	}
+	vecs := new(mat.Dense)
+	pc.VectorsTo(vecs)
+	glbBasis := mat.DenseCopyOf(vecs.Slice(0, mapSize, 0, pcaInitDim))
+	//
+	// @TODO: variance problem
+
+	return true, mergedBasis{basis: glbBasis}
 }
