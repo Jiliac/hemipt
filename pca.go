@@ -6,6 +6,7 @@ import (
 
 	"math"
 	"sort"
+	"sync"
 	"time"
 
 	"gonum.org/v1/gonum/mat"
@@ -719,6 +720,69 @@ const (
 // Will also need to diagonalize the basis and remove basis with near zero
 // variance.
 
+func prepareMerging(pcas []*dynamicPCA) (basisSlice []mergedBasis) {
+	// ** 1. Compute centers **
+	glbCenters := make([]float64, mapSize)
+	pcaN := float64(len(pcas))
+	for i := range glbCenters {
+		for _, pca := range pcas {
+			glbCenters[i] += pca.centers[i]
+		}
+		glbCenters[i] /= pcaN
+	}
+
+	// ** 2. **
+	var wg sync.WaitGroup
+	basisSlice = make([]mergedBasis, len(pcas))
+	for i, pca := range pcas {
+		wg.Add(1)
+		go func(i int, pca *dynamicPCA) {
+
+			covMat := new(mat.Dense)
+			covMat.Scale(1/float64(pca.sampleN), pca.covMat)
+
+			var pc stat.PC
+			pc.PrincipalComponents(covMat, nil)
+			vecs, basis := new(mat.Dense), new(mat.Dense)
+			pc.VectorsTo(vecs)
+			basis.Mul(pca.basis, vecs)
+
+			vars := pc.VarsTo(nil)
+			newDim := -1
+			for j, v := range vars {
+				if v > 1e-10 {
+					newDim = j
+				}
+			}
+			if newDim == -1 {
+				wg.Done()
+				return
+			}
+			newDim++
+
+			_, dimN := pca.basis.Dims()
+			if newDim != dimN {
+				basis = basis.Slice(0, mapSize, 0, newDim).(*mat.Dense)
+			}
+			for j, c := range glbCenters {
+				diff := c - pca.centers[j]
+				r := basis.RawRowView(j)
+				for k := range r {
+					r[k] += diff
+				}
+			}
+
+			basisSlice[i] = mergedBasis{centers: glbCenters, basis: basis,
+				vars: vars[:newDim], dimN: newDim}
+
+			wg.Done()
+		}(i, pca)
+	}
+	wg.Wait()
+
+	return basisSlice
+}
+
 func doMergeBasisBis(basisSlice []mergedBasis, targetDim int) (bool, mergedBasis) {
 	if len(basisSlice) == 0 {
 		fmt.Println("Cannot merge empty slice of basis")
@@ -771,7 +835,13 @@ func doMergeBasisBis(basisSlice []mergedBasis, targetDim int) (bool, mergedBasis
 	}
 	vecs := new(mat.Dense)
 	pc.VectorsTo(vecs)
-	glbBasis := mat.DenseCopyOf(vecs.Slice(0, mapSize, 0, targetDim))
+	_, c := vecs.Dims()
+	glbBasis := vecs
+	if c > targetDim {
+		glbBasis = mat.DenseCopyOf(glbBasis.Slice(0, mapSize, 0, targetDim))
+	} else {
+		targetDim = c
+	}
 	//
 	vars := make([]float64, targetDim)
 	for _, basis := range basisSlice {
@@ -780,10 +850,10 @@ func doMergeBasisBis(basisSlice []mergedBasis, targetDim int) (bool, mergedBasis
 			oldCovM.Set(i, i, v)
 		}
 		//
-		changeBasisM, newCovMat := new(mat.Dense), new(mat.Dense)
+		changeBasisM, newCovMat, tmp := new(mat.Dense), new(mat.Dense), new(mat.Dense)
 		changeBasisM.Mul(basis.basis.T(), glbBasis)
-		newCovMat.Mul(changeBasisM.T(), oldCovM)
-		newCovMat.Mul(newCovMat, changeBasisM)
+		tmp.Mul(changeBasisM.T(), oldCovM)
+		newCovMat.Mul(tmp, changeBasisM)
 		//
 		for i := range vars {
 			vars[i] += newCovMat.At(i, i)
@@ -792,6 +862,8 @@ func doMergeBasisBis(basisSlice []mergedBasis, targetDim int) (bool, mergedBasis
 	for i := range vars {
 		vars[i] /= float64(len(basisSlice))
 	}
+
+	// @TODO: Cut very low dimensions?
 
 	return true, mergedBasis{basisSlice[0].centers, glbBasis, vars, targetDim}
 }
