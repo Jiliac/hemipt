@@ -172,4 +172,11 @@ func checkHistos(seeds []*seedT) {
 		return
 	}
 	fmt.Printf("len(seeds), #stats = %d, %d\n", len(seeds), len(statSlice))
+
+	if len(statSlice) < 2 {
+		return
+	}
+	div1 := klDivHisto(statSlice[0], statSlice[1])
+	div2 := klDivHisto(statSlice[1], statSlice[0])
+	fmt.Printf("div1, div2: %.3v, %.3v\n", div1, div2)
 }

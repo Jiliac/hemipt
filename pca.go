@@ -350,6 +350,60 @@ func (stats *basisStats) getMoments(covMat *mat.Dense, normalizer float64) (
 }
 
 // *****************************************************************************
+// ******************** Histogram-based KL-Div estimation **********************
+
+func klDivHisto(p, q *basisStats) (div float64) {
+	dim := len(p.steps)
+	if dim != len(q.steps) {
+		log.Println("Histograms have different dimensions: can't compute divergence.")
+		return div
+	}
+
+	for i := range p.steps {
+		var min, max int
+		var totP, totQ float64
+		for j, v := range p.histos[i] {
+			totP += v
+			if j < min {
+				min = j
+			} else if j > max {
+				max = j
+			}
+		}
+		for j, v := range q.histos[i] {
+			totQ += v
+			if j < min {
+				min = j
+			} else if j > max {
+				max = j
+			}
+		}
+
+		l := max - min + 1
+		ps, qs := make([]float64, l), make([]float64, l)
+		for j := min; j <= max; j++ {
+			if pN, ok := p.histos[i][j]; ok {
+				ps[j-min] = (pN + 1) / totP
+			} else {
+				ps[j-min] = 1 / totP
+			}
+			if qN, ok := q.histos[i][j]; ok {
+				qs[j-min] = (qN + 1) / totQ
+			} else {
+				qs[j-min] = 1 / totQ
+			}
+		}
+
+		for j := range ps {
+			tmp := ps[j] * math.Log(ps[j]/qs[j])
+			div += p.steps[i] * tmp
+		}
+	}
+
+	return div
+}
+
+// *****************************************************************************
 // ************************** Histogram Analysis *******************************
 // Some modelization test.
 

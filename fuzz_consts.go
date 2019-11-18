@@ -46,7 +46,7 @@ const (
 
 	// *****************
 	// ** Experiments **
-	useEvoA = true  // Turn evolutionnary algorithm off for experiment.
+	useEvoA = false // Turn evolutionnary algorithm off for experiment.
 	logFreq = false // Log hash frequencies for MLE divergence estimation.
 	//
 	// Based on all the seeds and their PCA, get a global base. Record
