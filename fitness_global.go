@@ -29,11 +29,16 @@ type globalFitness struct {
 	stopChan chan struct{}
 }
 
-func makeGlbFitness(fitChan chan runT, newSeedChan chan *seedT) chan struct{} {
+func makeGlbFitness(fitChan chan runT, newSeedChan chan *seedT,
+	initSeeds []*seedT) chan struct{} {
+
 	glbFit := globalFitness{
 		brCovFitFunc: newBrCovFitFunc(),
 		ticker:       time.NewTicker(printTickT),
 		stopChan:     make(chan struct{}, 1),
+	}
+	for _, seed := range initSeeds {
+		glbFit.isFit(seed.runT)
 	}
 	go glbFit.listen(fitChan, newSeedChan)
 	return glbFit.stopChan

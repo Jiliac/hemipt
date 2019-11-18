@@ -43,6 +43,8 @@ func main() {
 
 	initSeeds := execInitSeed(threads, seedInputs)
 	seeds := fuzzLoop(threads, initSeeds)
+	//
+	var didDivPhase bool
 	if doDivPhase && !wasInterrupted {
 		fmt.Println("")
 		ok, glbProj := doGlbProjection(seeds)
@@ -52,10 +54,14 @@ func main() {
 			if appendDivFitFunc(seeds, glbProj.mergedBasis) {
 				fmt.Println("")
 				seeds = fuzzLoop(threads, seeds)
+				didDivPhase = true
 			}
 		}
 	}
 	// ** Epilogue **
+	if didDivPhase {
+		checkHistos(seeds)
+	}
 	export(config.outDir, seeds)
 	saveSeeds(config.outDir, seeds)
 
