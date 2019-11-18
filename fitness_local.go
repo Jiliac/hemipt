@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"time"
+
+	"gonum.org/v1/gonum/mat"
 )
 
 // The fitness function interfaces are intended to do the "heavy analysis" of a

@@ -71,7 +71,7 @@ func export(outDir string, seeds []*seedT) {
 	//testMLEDiv(glbProj.cleanedSeeds)
 
 	pcas := glbProj.pcas
-	exportHistos(pcas, filepath.Join(outDir, "histos.csv"))
+	//exportHistos(pcas, filepath.Join(outDir, "histos.csv"))
 	exportProjResults(pcas, filepath.Join(outDir, "pcas.csv"))
 
 	exportHashes(glbProj.cleanedSeeds, filepath.Join(outDir, "hashes.csv"))

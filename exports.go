@@ -32,8 +32,8 @@ func writeCSV(w *csv.Writer, records [][]string) {
 	// @TODO: Close the underlying file?
 }
 
-func exportHistos(pcas []*dynamicPCA, path string) {
-	if len(pcas) == 0 {
+func exportHistos(statSlice []*basisStats, path string) {
+	if len(statSlice) == 0 {
 		return
 	}
 	ok, w := makeCSVFile(path)
@@ -44,8 +44,8 @@ func exportHistos(pcas []*dynamicPCA, path string) {
 	records := [][]string{[]string{
 		"seed_n", "dim_n", "bin_n", "start", "end", "count",
 	}}
-	for i := range pcas {
-		histos, steps := pcas[i].stats.histos, pcas[i].stats.steps
+	for i, stats := range statSlice {
+		histos, steps := stats.histos, stats.steps
 		for j, histo := range histos {
 			for k, cnt := range histo {
 				records = append(records, []string{
@@ -90,7 +90,7 @@ func exportProjResults(pcas []*dynamicPCA, path string) {
 		pcaEntry := []string{
 			fmt.Sprintf("%d", pca.sampleN),
 			fmt.Sprintf("%f", totSpaceVar),
-			fmt.Sprintf("%f", pca.stats.sqNorm*normalizer),
+			fmt.Sprintf("%f", pca.sqNorm*normalizer),
 		}
 		for i := 0; i < basisSize; i++ {
 			pcaEntry = append(pcaEntry, fmt.Sprintf("%f", m.At(i, i)))
@@ -142,7 +142,7 @@ func exportDistances(glbProj globalProjection, path string) {
 		go func(i int) {
 
 			i1 := fmt.Sprintf("%d", i)
-			sqNorm := pcas[i].stats.sqNorm / float64(pcas[i].sampleN)
+			sqNorm := pcas[i].sqNorm / float64(pcas[i].sampleN)
 			covMat, _, _ := inverseMat(pcas[i])
 			det, _ := mat.LogDet(covMat)
 			subRecs[i] = [][]string{

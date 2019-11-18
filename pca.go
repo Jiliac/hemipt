@@ -28,27 +28,17 @@ type dynamicPCA struct {
 	basis   *mat.Dense
 
 	sampleN int
+	sqNorm  float64
 	sums    [mapSize]float64
 	covMat  *mat.Dense // Covariance Matrix; cumulative
-	stats   *basisStats
 
 	// Phase-based initialization
 	startT, recenterT      time.Time
 	phase2, phase3, phase4 bool
 }
-type basisStats struct {
-	sqNorm   float64    // Square norm (2nd moment); cumulative
-	thirdMos *mat.Dense // Third moments; cumulative
-	forthMos *mat.Dense // Forth moments; cumulative
-
-	// Histograms (on for each dimensions)
-	useHisto bool
-	steps    []float64 // The bucket size of each dimension
-	histos   []map[int]float64
-}
 
 func newDynPCA(queue [][]byte) (ok bool, dynpca *dynamicPCA) {
-	dynpca = &dynamicPCA{stats: new(basisStats)}
+	dynpca = new(dynamicPCA)
 
 	// ** 1. Compute centers **
 	for _, trace := range queue {
@@ -65,7 +55,6 @@ func newDynPCA(queue [][]byte) (ok bool, dynpca *dynamicPCA) {
 		for i := 0; i < dynpca.sampleN; i++ {
 			y := logVals[queue[i][j]] - dynpca.centers[j]
 			samplesMat.Set(i, j, y)
-			dynpca.stats.addSqNorm(y * y)
 		}
 	}
 
@@ -87,7 +76,6 @@ func newDynPCA(queue [][]byte) (ok bool, dynpca *dynamicPCA) {
 	for i := 0; i < pcaInitDim; i++ {
 		dynpca.covMat.Set(i, i, float64(dynpca.sampleN)*vars[i])
 	}
-	dynpca.stats.initStats(dynpca.basis, samplesMat)
 	//
 	dynpca.phase2 = true
 	dynpca.startT = time.Now()
@@ -118,7 +106,7 @@ func (dynpca *dynamicPCA) newSample(trace []byte) {
 		v := logVals[tr]
 		dynpca.sums[i] += v
 		v -= dynpca.centers[i]
-		dynpca.stats.addSqNorm(v * v)
+		dynpca.sqNorm += v * v
 		sampMat.Set(0, i, v)
 	}
 
@@ -130,8 +118,6 @@ func (dynpca *dynamicPCA) newSample(trace []byte) {
 	covs := new(mat.Dense)
 	covs.Mul(projMat.T(), projMat)
 	dynpca.covMat.Add(dynpca.covMat, covs)
-	//
-	dynpca.stats.addProj(projMat)
 }
 
 func (dynpca *dynamicPCA) recenter() {
@@ -152,7 +138,6 @@ func (dynpca *dynamicPCA) recenter() {
 	ratio := float64(newSampN) / n
 	m.Scale(ratio, dynpca.covMat)
 	dynpca.covMat = m
-	dynpca.stats.softReset(ratio)
 	dynpca.sampleN = newSampN
 }
 
@@ -190,7 +175,6 @@ func (dynpca *dynamicPCA) rotate() (ok bool) {
 			dynpca.covMat.Set(i, i, eVals[i]*float64(dynpca.sampleN))
 		}
 		dynpca.basis.Mul(dynpca.basis, eVecs)
-		dynpca.stats.initHisto(eVals)
 	}
 
 	return ok
@@ -259,7 +243,7 @@ func (dynpca *dynamicPCA) String() (str string) {
 	str = fmt.Sprintf("#sample: %.3v\n", float64(dynpca.sampleN))
 	//
 	normalizer := 1 / float64(dynpca.sampleN)
-	sqNorm := dynpca.stats.sqNorm * normalizer
+	sqNorm := dynpca.sqNorm * normalizer
 	//
 	var m mat.Dense
 	var totSpaceVar float64
@@ -270,9 +254,6 @@ func (dynpca *dynamicPCA) String() (str string) {
 	}
 	str += fmt.Sprintf("Square Norm: %.3v (%.1f%%)\n",
 		sqNorm, 100*totSpaceVar/sqNorm)
-	//
-	tm, fm := dynpca.stats.getMoments(&m, normalizer)
-	str += printCompoStats(dynpca.stats, tm, fm)
 	//
 	str += fmt.Sprintf("Covariance Matrix:\n%.3v", mat.Formatted(&m))
 
@@ -291,18 +272,24 @@ func (dynpca *dynamicPCA) String() (str string) {
 }
 
 // *****************************************************************************
+// *****************************************************************************
 // *************************** Basis Statistics ********************************
 
-func (stats *basisStats) initStats(basis, samplesMat *mat.Dense) {
-	stats.forthMos = mat.NewDense(1, pcaInitDim, make([]float64, pcaInitDim))
-	stats.thirdMos = mat.NewDense(1, pcaInitDim, make([]float64, pcaInitDim))
-	projections := new(mat.Dense)
-	projections.Mul(samplesMat, basis)
-	r, c := projections.Dims()
-	for i := 0; i < r; i++ {
-		proj := projections.RawRowView(i)
-		projMat := mat.NewDense(1, c, proj)
-		stats.addProj(projMat)
+type basisStats struct {
+	sqNorm   float64    // Square norm (2nd moment); cumulative
+	thirdMos *mat.Dense // Third moments; cumulative
+	forthMos *mat.Dense // Forth moments; cumulative
+
+	// Histograms (on for each dimensions)
+	useHisto bool
+	steps    []float64 // The bucket size of each dimension
+	histos   []map[int]float64
+}
+
+func newStats() *basisStats {
+	return &basisStats{
+		forthMos: mat.NewDense(1, pcaInitDim, make([]float64, pcaInitDim)),
+		thirdMos: mat.NewDense(1, pcaInitDim, make([]float64, pcaInitDim)),
 	}
 }
 
@@ -317,10 +304,6 @@ func (stats *basisStats) initHisto(vars []float64) { // This is mostly just allo
 			stats.histos[i][j] = 0
 		}
 	}
-}
-
-func (stats *basisStats) addSqNorm(sqNorm float64) {
-	stats.sqNorm += sqNorm
 }
 
 func tripling(i, j int, v float64) float64    { return v * v * v }
@@ -348,18 +331,6 @@ func (stats *basisStats) addProj(projMat *mat.Dense) {
 	quadM.Apply(quadrupling, projMat)
 	stats.thirdMos.Add(stats.thirdMos, &tripleM)
 	stats.forthMos.Add(stats.forthMos, &quadM)
-}
-
-func (stats *basisStats) softReset(ratio float64) {
-	if stats.useHisto {
-		for i := range stats.histos {
-			for bucket, v := range stats.histos[i] {
-				stats.histos[i][bucket] = v * ratio
-			}
-		}
-	}
-	stats.sqNorm *= ratio
-	stats.forthMos.Scale(ratio, stats.forthMos)
 }
 
 func (stats *basisStats) getMoments(covMat *mat.Dense, normalizer float64) (
@@ -832,6 +803,7 @@ func doMergeBasisBis(basisSlice []mergedBasis, targetDim int) (bool, mergedBasis
 	}
 	//
 	vars := make([]float64, targetDim)
+	newVarEval(basisSlice, glbBasis, vars)
 	//loss := newVarEval(basisSlice, glbBasis, vars)
 	//fmt.Printf("Intermediary projection loss: %.1f%%\n", 100*loss)
 
