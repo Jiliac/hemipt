@@ -44,7 +44,6 @@ func main() {
 	initSeeds := execInitSeed(threads, seedInputs)
 	seeds := fuzzLoop(threads, initSeeds)
 	//
-	var didDivPhase bool
 	if doDivPhase && !wasInterrupted {
 		fmt.Println("")
 		ok, glbProj := doGlbProjection(seeds)

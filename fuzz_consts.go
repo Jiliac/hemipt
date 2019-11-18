@@ -46,8 +46,8 @@ const (
 
 	// *****************
 	// ** Experiments **
-	useEvoA = false // Turn evolutionnary algorithm off for experiment.
-	logFreq = false // Log hash frequencies for MLE divergence estimation.
+	useEvoA = true // Turn evolutionnary algorithm off for experiment.
+	logFreq = true // Log hash frequencies for MLE divergence estimation.
 	//
 	// Based on all the seeds and their PCA, get a global base. Record
 	// historgram on this base and compute divergences.
@@ -55,9 +55,10 @@ const (
 )
 
 var fuzzRoundN = fuzzRoundNBase
+var didDivPhase bool
 
 func init() {
 	if logFreq {
-		fuzzRoundN = 30 // 2min30s on each seed.
+		fuzzRoundN = 12 // 1min on each seed.
 	}
 }

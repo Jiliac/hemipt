@@ -13,7 +13,7 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-// Helpers
+// **** Helpers ****
 func makeCSVFile(path string) (ok bool, w *csv.Writer) {
 	f, err := os.Create(path)
 	if err != nil {
@@ -184,13 +184,29 @@ func exportDistances(glbProj globalProjection, path string) {
 						klDiv(pcas[j], pcas[i]))},
 				}...)
 				//
+				if !didDivPhase {
+					continue
+				}
+				oki, si := getDivFF(glbProj.cleanedSeeds[i])
+				okj, sj := getDivFF(glbProj.cleanedSeeds[j])
+				if !oki || !okj {
+					log.Println("Skip histo-based divergence estimation.")
+					continue
+				}
+				subRecs[i] = append(subRecs[i], [][]string{
+					[]string{i1, i2, "hist_divergence", fmt.Sprintf("%f",
+						klDivHisto(si.stats, sj.stats))},
+					[]string{i2, i1, "hist_divergence", fmt.Sprintf("%f",
+						klDivHisto(sj.stats, si.stats))},
+				}...)
+				//
 				if !logFreq {
 					continue
 				}
 				oki, ffi := getPCAFF(glbProj.cleanedSeeds[i])
 				okj, ffj := getPCAFF(glbProj.cleanedSeeds[j])
 				if !oki || !okj {
-					log.Println("Skip MLE divergence.")
+					log.Println("Skip MLE divergence estimation.")
 					continue
 				}
 				subRecs[i] = append(subRecs[i], [][]string{
