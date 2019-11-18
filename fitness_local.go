@@ -189,5 +189,42 @@ func (pff *pcaFitFunc) String() string {
 // *****************************************************************************
 // ************************** Divergence Fitness *******************************
 
-func appendDivFitFunc(seeds []*seedT, mb mergedBasis) {
+type divFitness struct {
+	// Read-only because shared.
+	centers []float64
+	basis   *mat.Dense
+
+	stats *basisStats
 }
+
+func appendDivFitFunc(seeds []*seedT, mb mergedBasis) (ok bool) {
+	for _, seed := range seeds {
+		if fm, okC := seed.exec.discoveryFit.(fitnessMultiplexer); okC {
+			ok = true
+			df := &divFitness{centers: mb.centers, basis: mb.basis,
+				stats: newStats(mb.dimN)}
+			df.stats.initHisto(mb.vars)
+			seed.exec.discoveryFit = append(fm, df)
+			seed.execN = 0
+		}
+	}
+	return ok
+}
+
+func (df divFitness) isFit(runInfo runT) bool {
+	sampleMat := mat.NewDense(1, mapSize, nil)
+	for i, tr := range runInfo.trace {
+		v := logVals[tr]
+		v -= df.centers[i]
+		sampleMat.Set(0, i, v)
+	}
+
+	projMat := new(mat.Dense)
+	projMat.Mul(sampleMat, df.basis)
+
+	df.stats.addProj(projMat)
+
+	return false
+}
+
+func (divFitness) String() string { return "Divergence fitness" }

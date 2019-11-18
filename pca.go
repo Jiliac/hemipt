@@ -286,10 +286,10 @@ type basisStats struct {
 	histos   []map[int]float64
 }
 
-func newStats() *basisStats {
+func newStats(dimN int) *basisStats {
 	return &basisStats{
-		forthMos: mat.NewDense(1, pcaInitDim, make([]float64, pcaInitDim)),
-		thirdMos: mat.NewDense(1, pcaInitDim, make([]float64, pcaInitDim)),
+		forthMos: mat.NewDense(1, dimN, make([]float64, dimN)),
+		thirdMos: mat.NewDense(1, dimN, make([]float64, dimN)),
 	}
 }
 

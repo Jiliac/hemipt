@@ -60,11 +60,15 @@ func (sched *scheduler) schedule(fitChan chan runT, threadRunningN int) {
 			printStatus(seeds)
 
 		case newSeed := <-sched.newSeedChan:
-			newSeed.exec = &executor{
-				ig:             makeRatioMutator(newSeed.input, mutationRatio),
-				securityPolicy: falseFitFunc{},
-				fitChan:        fitChan,
-				crashChan:      devNullFitChan,
+			if newSeed.exec == nil {
+				newSeed.exec = &executor{
+					ig:             makeRatioMutator(newSeed.input, mutationRatio),
+					securityPolicy: falseFitFunc{},
+					fitChan:        fitChan,
+					crashChan:      devNullFitChan,
+				}
+			} else {
+				newSeed.exec.fitChan = fitChan
 			}
 			seeds = append(seeds, newSeed)
 			//
@@ -100,7 +104,7 @@ func (sched *scheduler) schedule(fitChan chan runT, threadRunningN int) {
 				continue
 			}
 
-			if seed.execN == 0 {
+			if seed.exec.discoveryFit == nil {
 				seed.exec.discoveryFit = fitnessMultiplexer{
 					newBrCovFitFunc(), newPCAFitFunc()}
 			}

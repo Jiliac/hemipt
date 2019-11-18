@@ -96,7 +96,7 @@ func doGlbProjection(seeds []*seedT) (bool, globalProjection) {
 		}
 	}
 	if len(pcas) == 0 {
-		log.Println("No PCA found?")
+		log.Println("No seed has a PCA basis??")
 		return false, globalProjection{}
 	}
 	fmt.Printf("len(seeds), len(pcas): %d, %d\n", len(seeds), len(pcas))
