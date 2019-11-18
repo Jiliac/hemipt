@@ -832,8 +832,8 @@ func doMergeBasisBis(basisSlice []mergedBasis, targetDim int) (bool, mergedBasis
 	}
 	//
 	vars := make([]float64, targetDim)
-	loss := newVarEval(basisSlice, glbBasis, vars)
-	fmt.Printf("Intermediary projection loss: %.1f%%\n", 100*loss)
+	//loss := newVarEval(basisSlice, glbBasis, vars)
+	//fmt.Printf("Intermediary projection loss: %.1f%%\n", 100*loss)
 
 	// @TODO: Cut very low dimensions?
 

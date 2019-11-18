@@ -183,3 +183,9 @@ func (pff *pcaFitFunc) endInit() {
 func (pff *pcaFitFunc) String() string {
 	return pff.dynpca.String()
 }
+
+// *****************************************************************************
+// ************************** Divergence Fitness *******************************
+
+func appendDivFitFunc(seeds []*seedT, mb mergedBasis) {
+}

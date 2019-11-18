@@ -8,7 +8,7 @@ const (
 	// ****************
 	// ** Scheduling **
 	roundTime      = 5 * time.Second
-	fuzzRoundNBase = 5
+	fuzzRoundNBase = 3
 
 	// **********************
 	// ** Input Generation **
@@ -46,14 +46,18 @@ const (
 
 	// *****************
 	// ** Experiments **
-	useEvoA = true // Turn evolutionnary algorithm off for experiment.
-	logFreq = true
+	useEvoA = true  // Turn evolutionnary algorithm off for experiment.
+	logFreq = false // Log hash frequencies for MLE divergence estimation.
+	//
+	// Based on all the seeds and their PCA, get a global base. Record
+	// historgram on this base and compute divergences.
+	doDivPhase = true
 )
 
 var fuzzRoundN = fuzzRoundNBase
 
 func init() {
 	if logFreq {
-		fuzzRoundN = 60 // 5 minutes on each seed.
+		fuzzRoundN = 30 // 2min30s on each seed.
 	}
 }

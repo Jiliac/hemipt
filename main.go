@@ -43,6 +43,15 @@ func main() {
 
 	initSeeds := execInitSeed(threads, seedInputs)
 	seeds := fuzzLoop(threads, initSeeds)
+	if doDivPhase && !wasInterrupted {
+		ok, glbProj := doGlbProjection(seeds)
+		if !ok {
+			log.Println("Couldn't get global basis. Divergence phase aborted.")
+		} else {
+			appendDivFitFunc(seeds, glbProj.mergedBasis)
+			seeds = fuzzLoop(threads, initSeeds)
+		}
+	}
 	// ** Epilogue **
 	export(config.outDir, seeds)
 	saveSeeds(config.outDir, seeds)

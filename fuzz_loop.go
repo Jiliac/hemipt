@@ -46,7 +46,10 @@ func fuzzLoop(threads []*thread, initSeeds []*seedT) (seeds []*seedT) {
 // *****************************************************************************
 // ******************************** Interrupt **********************************
 
-var intChans = newIntMulti()
+var (
+	intChans       = newIntMulti()
+	wasInterrupted bool
+)
 
 func init() {
 	sigChan := make(chan os.Signal, 1)
@@ -54,6 +57,7 @@ func init() {
 	go func() {
 		for s := range sigChan {
 			fmt.Printf("Signal: %+v\n", s)
+			wasInterrupted = true
 			intChans.signal(s)
 		}
 	}()

@@ -102,10 +102,7 @@ func doGlbProjection(seeds []*seedT) (bool, globalProjection) {
 	fmt.Printf("len(seeds), len(pcas): %d, %d\n", len(seeds), len(pcas))
 
 	basisSlice := prepareMerging(pcas)
-	ok, mb := doMergeBasisBis(basisSlice, maxPCADimN/2)
-	if ok {
-		ok, mb = doMergeBasisBis([]mergedBasis{mb}, pcaInitDim)
-	}
+	ok, mb := doMergeBasisBis(basisSlice, 2*pcaInitDim)
 	if !ok { // There was an error.
 		log.Println("Problem computing the global basis.")
 		return false, globalProjection{}
