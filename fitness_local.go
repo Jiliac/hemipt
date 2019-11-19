@@ -247,7 +247,8 @@ func listenGlbFreqs() {
 	freqs := map[uint16]uint16{1: 0, 2: 0}
 	var totSpecies int
 
-	for {
+	var stop bool
+	for !stop {
 		select {
 		case _ = <-ticker.C:
 			f1, f2, totS := freqs[1], freqs[2], float64(totSpecies)
@@ -256,10 +257,15 @@ func listenGlbFreqs() {
 			if f2 > 0 {
 				progress = 100 * totS / (totS + float64(f1)*float64(f1)/(2*float64(f2)))
 			}
-			fmt.Printf("f1: %d (%.1f%%)\tf2: %d (%.1f%%).\t"+
-				"Coverage progress estimation: %.1f%%\n", f1, f1P, f2, f2P, progress)
+			fmt.Printf("f1: %d (%.1f%%)\tf2: %d (%.1f%%).\ttot: %.2v\t"+
+				"Coverage progress estimation: %.1f%%\n", f1, f1P, f2, f2P, totS, progress)
 
-		case hash := <-glbFreqFitChan:
+		case hash, okChan := <-glbFreqFitChan:
+			if !okChan {
+				stop = true
+				break
+			}
+			//
 			if freq, ok := hashes[hash]; !ok {
 				hashes[hash] = 1
 				freqs[1]++

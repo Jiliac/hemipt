@@ -27,15 +27,19 @@ type globalFitness struct {
 
 	ticker   *time.Ticker
 	stopChan chan struct{}
+
+	seedN, threadN int
 }
 
 func makeGlbFitness(fitChan chan runT, newSeedChan chan *seedT,
-	initSeeds []*seedT) chan struct{} {
+	initSeeds []*seedT, threadN int) chan struct{} {
 
 	glbFit := globalFitness{
 		brCovFitFunc: newBrCovFitFunc(),
 		ticker:       time.NewTicker(printTickT),
 		stopChan:     make(chan struct{}, 1),
+		seedN:        len(initSeeds),
+		threadN:      threadN,
 	}
 	for _, seed := range initSeeds {
 		glbFit.isFit(seed.runT)
@@ -61,8 +65,13 @@ func (glbFit globalFitness) listen(fitChan chan runT, newSeedChan chan *seedT) {
 
 		case runInfo := <-fitChan:
 			if !useEvoA {
-				glbFit.isFit(runInfo)
+				pass := glbFit.isFit(runInfo)
+				if glbFit.seedN < glbFit.threadN && pass {
+					glbFit.seedN++
+					newSeedChan <- &seedT{runT: runInfo}
+				}
 			} else if glbFit.isFit(runInfo) {
+				glbFit.seedN++
 				newSeedChan <- &seedT{runT: runInfo}
 			}
 		}

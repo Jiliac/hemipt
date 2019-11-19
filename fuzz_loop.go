@@ -36,7 +36,7 @@ func execInitSeed(threads []*thread, seedInputs [][]byte) (initSeeds []*seedT) {
 func fuzzLoop(threads []*thread, initSeeds []*seedT) (seeds []*seedT) {
 	fitChan := make(chan runT, 1000)
 	sched := newScheduler(threads, initSeeds, fitChan)
-	stopChan := makeGlbFitness(fitChan, sched.newSeedChan, initSeeds)
+	stopChan := makeGlbFitness(fitChan, sched.newSeedChan, initSeeds, len(threads))
 
 	seeds = <-sched.seedsChan
 	stopChan <- struct{}{}
