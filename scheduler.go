@@ -105,8 +105,11 @@ func (sched *scheduler) schedule(fitChan chan runT, threadRunningN int) {
 			}
 
 			if seed.exec.discoveryFit == nil {
-				seed.exec.discoveryFit = fitnessMultiplexer{
-					newBrCovFitFunc(), newPCAFitFunc()}
+				fm := fitnessMultiplexer{newBrCovFitFunc(), newPCAFitFunc()}
+				if trackGlbFreqs {
+					fm = append(fm, freqFitFunc{})
+				}
+				seed.exec.discoveryFit = fm
 			}
 			seed.execN, seed.running = seed.execN+1, true
 

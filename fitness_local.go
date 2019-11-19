@@ -228,3 +228,55 @@ func (df divFitness) isFit(runInfo runT) bool {
 }
 
 func (divFitness) String() string { return "Divergence fitness" }
+
+// *****************************************************************************
+// *************************** Global Frequences *******************************
+
+var glbFreqFitChan chan uint64
+
+func init() {
+	if trackGlbFreqs {
+		glbFreqFitChan = make(chan uint64, 100000)
+		go listenGlbFreqs()
+	}
+}
+
+func listenGlbFreqs() {
+	ticker := time.NewTicker(printTickT)
+	hashes := make(map[uint64]uint16)
+	freqs := map[uint16]uint16{1: 0, 2: 0}
+	var totSpecies int
+
+	for {
+		select {
+		case _ = <-ticker.C:
+			f1, f2, totS := freqs[1], freqs[2], float64(totSpecies)
+			f1P, f2P := 100*float64(f1)/totS, 100*float64(f2)/totS
+			progress := 100 * totS / (totS + float64(f1))
+			if f2 > 0 {
+				progress = 100 * totS / (totS + float64(f1)*float64(f1)/(2*float64(f2)))
+			}
+			fmt.Printf("f1: %d (%.1f%%)\tf2: %d (%.1f%%).\t"+
+				"Coverage progress estimation: %.1f%%\n", f1, f1P, f2, f2P, progress)
+
+		case hash := <-glbFreqFitChan:
+			if freq, ok := hashes[hash]; !ok {
+				hashes[hash] = 1
+				freqs[1]++
+				totSpecies++
+			} else {
+				hashes[hash] = freq + 1
+				freqs[freq]--
+				if _, ok := freqs[freq]; !ok {
+					freqs[freq] = 0
+				}
+				freqs[freq+1]++
+			}
+		}
+	}
+}
+
+type freqFitFunc struct{}
+
+func (freqFitFunc) isFit(runInfo runT) bool { glbFreqFitChan <- runInfo.hash; return false }
+func (freqFitFunc) String() string          { return "Frequency finess" }

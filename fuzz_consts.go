@@ -52,6 +52,8 @@ const (
 	// Based on all the seeds and their PCA, get a global base. Record
 	// historgram on this base and compute divergences.
 	doDivPhase = true
+	//
+	trackGlbFreqs = true
 )
 
 var fuzzRoundN = fuzzRoundNBase
