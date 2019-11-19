@@ -63,6 +63,44 @@ func exportHistos(statSlice []*basisStats, path string) {
 	writeCSV(w, records)
 }
 
+func exportFrequencies(glbProj globalProjection, path string) {
+	if len(glbProj.pcas) == 0 {
+		return
+	}
+	ok, w := makeCSVFile(path)
+	if !ok {
+		return
+	}
+
+	records := [][]string{[]string{
+		"hash", "freq", "n",
+	}}
+	for _, seed := range glbProj.cleanedSeeds {
+		ok, pcaFF := getPCAFF(seed)
+		if !ok {
+			continue
+		}
+		//
+		freqs := make(map[byte]int)
+		for _, freq := range pcaFF.hashesF {
+			freqs[freq] = 0
+		}
+		for _, freq := range pcaFF.hashesF {
+			freqs[freq]++
+		}
+		//
+		seedHash := fmt.Sprintf("%x", seed.hash)
+		for freq, n := range freqs {
+			records = append(records, []string{seedHash,
+				fmt.Sprintf("%d", freq),
+				fmt.Sprintf("%d", n),
+			})
+		}
+	}
+
+	writeCSV(w, records)
+}
+
 func exportProjResults(pcas []*dynamicPCA, path string) {
 	if len(pcas) == 0 {
 		return
@@ -184,21 +222,18 @@ func exportDistances(glbProj globalProjection, path string) {
 						klDiv(pcas[j], pcas[i]))},
 				}...)
 				//
-				if !didDivPhase {
-					continue
+				if didDivPhase {
+					oki, si := getDivFF(glbProj.cleanedSeeds[i])
+					okj, sj := getDivFF(glbProj.cleanedSeeds[j])
+					if oki && okj {
+						subRecs[i] = append(subRecs[i], [][]string{
+							[]string{i1, i2, "hist_divergence", fmt.Sprintf("%f",
+								klDivHisto(si.stats, sj.stats))},
+							[]string{i2, i1, "hist_divergence", fmt.Sprintf("%f",
+								klDivHisto(sj.stats, si.stats))},
+						}...)
+					}
 				}
-				oki, si := getDivFF(glbProj.cleanedSeeds[i])
-				okj, sj := getDivFF(glbProj.cleanedSeeds[j])
-				if !oki || !okj {
-					log.Println("Skip histo-based divergence estimation.")
-					continue
-				}
-				subRecs[i] = append(subRecs[i], [][]string{
-					[]string{i1, i2, "hist_divergence", fmt.Sprintf("%f",
-						klDivHisto(si.stats, sj.stats))},
-					[]string{i2, i1, "hist_divergence", fmt.Sprintf("%f",
-						klDivHisto(sj.stats, si.stats))},
-				}...)
 				//
 				if !logFreq {
 					continue
