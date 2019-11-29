@@ -8,6 +8,9 @@ type regionT struct {
 	speciesMap map[uint64]struct{}
 	speciesN   int
 	sampleN    int
+
+	// Additional stats
+	distSum, sqDistSum, thirdDistSum, quadDistSum float64
 }
 
 func makeRegion(proj []float64) regionT {
@@ -38,6 +41,15 @@ func findRegion(regions []regionT, pt []float64, hash uint64) {
 	if _, ok := regions[closestRI].speciesMap[hash]; !ok {
 		regions[closestRI].speciesMap[hash] = struct{}{}
 		regions[closestRI].speciesN++
+	}
+
+	const recordMoreStats = true
+	if recordMoreStats {
+		root := math.Sqrt(minDist)
+		regions[closestRI].distSum += root
+		regions[closestRI].sqDistSum += minDist
+		regions[closestRI].thirdDistSum += root * minDist
+		regions[closestRI].quadDistSum += minDist * minDist
 	}
 }
 

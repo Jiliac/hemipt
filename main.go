@@ -50,10 +50,12 @@ func main() {
 		if !ok {
 			log.Println("Couldn't get global basis. Divergence phase aborted.")
 		} else {
-			if appendDivFitFunc(seeds, glbProj) {
+			okDFF, finder := appendDivFitFunc(seeds, glbProj)
+			if okDFF {
 				fmt.Println("")
 				seeds = fuzzLoop(threads, seeds)
 				didDivPhase = true
+				finder.export(config.outDir)
 			}
 		}
 	}
