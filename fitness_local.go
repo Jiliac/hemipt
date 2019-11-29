@@ -197,22 +197,31 @@ type divFitness struct {
 	stats *basisStats
 
 	regionChan chan<- projectedPt
+	seedHash   uint64
 }
 
 type projectedPt struct {
-	proj []float64
-	hash uint64
+	proj     []float64
+	hash     uint64
+	seedHash uint64
 }
 type regionFinder struct {
 	regionChan chan projectedPt
 	regions    []regionT
+
+	// Hash: seed ID
+	// Index in []int slice: region ID
+	// Value in slice: how many time a seed triggered a particular region.
+	seedRegionCnt map[uint64][]int
 }
 
 func appendDivFitFunc(seeds []*seedT, glbProj globalProjection) (
 	ok bool, finder regionFinder) {
+	regionN := len(glbProj.centProjs)
 	finder = regionFinder{
-		regionChan: make(chan projectedPt, 100),
-		regions:    make([]regionT, len(glbProj.centProjs)),
+		regionChan:    make(chan projectedPt, 100),
+		regions:       make([]regionT, regionN),
+		seedRegionCnt: make(map[uint64][]int),
 	}
 	for i, mat := range glbProj.centProjs {
 		finder.regions[i] = makeRegion(mat.RawRowView(0))
@@ -224,10 +233,13 @@ func appendDivFitFunc(seeds []*seedT, glbProj globalProjection) (
 		if fm, okC := seed.exec.discoveryFit.(fitnessMultiplexer); okC {
 			ok = true
 			df := &divFitness{centers: mb.centers, basis: mb.basis,
-				stats: newStats(mb.dimN), regionChan: finder.regionChan}
+				stats:      newStats(mb.dimN),
+				regionChan: finder.regionChan, seedHash: seed.hash,
+			}
 			df.stats.initHisto(mb.vars)
 			seed.exec.discoveryFit = append(fm, df)
 			seed.execN = 0
+			finder.seedRegionCnt[seed.hash] = make([]int, regionN)
 		}
 	}
 
@@ -246,7 +258,7 @@ func (df divFitness) isFit(runInfo runT) bool {
 	projMat.Mul(sampleMat, df.basis)
 
 	df.stats.addProj(projMat)
-	df.regionChan <- projectedPt{projMat.RawRowView(0), runInfo.hash}
+	df.regionChan <- projectedPt{projMat.RawRowView(0), runInfo.hash, df.seedHash}
 
 	return false
 }
@@ -255,7 +267,8 @@ func (divFitness) String() string { return "Divergence fitness" }
 
 func (rf regionFinder) listen() {
 	for projPt := range rf.regionChan {
-		findRegion(rf.regions, projPt.proj, projPt.hash)
+		closestRI := findRegion(rf.regions, projPt.proj, projPt.hash)
+		rf.seedRegionCnt[projPt.seedHash][closestRI]++
 	}
 }
 

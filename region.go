@@ -22,8 +22,7 @@ func makeRegion(proj []float64) regionT {
 	return r
 }
 
-func findRegion(regions []regionT, pt []float64, hash uint64) {
-	var closestRI int
+func findRegion(regions []regionT, pt []float64, hash uint64) (closestRI int) {
 	minDist := math.MaxFloat64
 	for i, r := range regions {
 		var dist float64
@@ -49,6 +48,8 @@ func findRegion(regions []regionT, pt []float64, hash uint64) {
 		regions[closestRI].distSum += root
 		regions[closestRI].sqDistSum += minDist
 	}
+
+	return closestRI
 }
 
 func (r regionT) expectedSampleReward() float64 {
