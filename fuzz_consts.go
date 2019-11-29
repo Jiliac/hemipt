@@ -30,7 +30,7 @@ const (
 	phase3Dur     = phase2Dur
 	convCritFloor = 0.05 // Floor to apply rotation.
 
-	bucketSensitiveness = 5 // How many buckets per std in histogram.
+	bucketSensitiveness = 10 // How many buckets per std in histogram.
 
 	// *************
 	// ** Verbose **
@@ -46,8 +46,8 @@ const (
 
 	// *****************
 	// ** Experiments **
-	useEvoA = true // Turn evolutionnary algorithm off for experiment.
-	logFreq = true // Log hash frequencies for MLE divergence estimation.
+	useEvoA = true  // Turn evolutionnary algorithm off for experiment.
+	logFreq = false // Log hash frequencies for MLE divergence estimation.
 	//
 	// Based on all the seeds and their PCA, get a global base. Record
 	// historgram on this base and compute divergences.
@@ -61,6 +61,6 @@ var didDivPhase bool
 
 func init() {
 	if logFreq {
-		fuzzRoundN = 12 // 1min on each seed.
+		fuzzRoundN = 12
 	}
 }
