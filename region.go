@@ -3,25 +3,25 @@ package main
 import "math"
 
 type regionT struct {
-	center []byte
-	proj   []float64
+	proj []float64
 
 	speciesMap map[uint64]struct{}
 	speciesN   int
 	sampleN    int
 }
 
-func makeRegion(center []byte, proj []float64) regionT {
-	return regionT{
-		center:     center,
-		proj:       proj,
+func makeRegion(proj []float64) regionT {
+	r := regionT{
+		proj:       make([]float64, len(proj)),
 		speciesMap: make(map[uint64]struct{}),
 	}
+	copy(r.proj, proj)
+	return r
 }
 
 func findRegion(regions []regionT, pt []float64, hash uint64) {
-	var minDist float64
 	var closestRI int
+	minDist := math.MaxFloat64
 	for i, r := range regions {
 		var dist float64
 		for j, p := range r.proj {
@@ -48,5 +48,5 @@ func (r regionT) expectedSampleReward() float64 {
 	specN := float64(r.speciesN)
 	discoveryP := specN / float64(r.sampleN)
 	discoveryR := math.Log((specN + 1) / specN)
-	return discoveryP * discoveryR
+	return discoveryP * discoveryR // If specN is high, this is approximatively 1/sampleN
 }

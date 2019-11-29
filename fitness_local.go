@@ -195,19 +195,40 @@ type divFitness struct {
 	basis   *mat.Dense
 
 	stats *basisStats
+
+	regionChan chan<- projectedPt
 }
 
-func appendDivFitFunc(seeds []*seedT, mb mergedBasis) (ok bool) {
+type projectedPt struct {
+	proj []float64
+	hash uint64
+}
+
+func appendDivFitFunc(seeds []*seedT, glbProj globalProjection) (ok bool) {
+	regionChan := make(chan projectedPt, 100)
+	mb := glbProj.mergedBasis
 	for _, seed := range seeds {
 		if fm, okC := seed.exec.discoveryFit.(fitnessMultiplexer); okC {
 			ok = true
 			df := &divFitness{centers: mb.centers, basis: mb.basis,
-				stats: newStats(mb.dimN)}
+				stats: newStats(mb.dimN), regionChan: regionChan}
 			df.stats.initHisto(mb.vars)
 			seed.exec.discoveryFit = append(fm, df)
 			seed.execN = 0
 		}
 	}
+
+	regions := make([]regionT, len(glbProj.centProjs))
+	for i, mat := range glbProj.centProjs {
+		regions[i] = makeRegion(mat.RawRowView(0))
+	}
+
+	go func() {
+		for projPt := range regionChan {
+			findRegion(regions, projPt.proj, projPt.hash)
+		}
+	}()
+
 	return ok
 }
 
@@ -223,6 +244,7 @@ func (df divFitness) isFit(runInfo runT) bool {
 	projMat.Mul(sampleMat, df.basis)
 
 	df.stats.addProj(projMat)
+	df.regionChan <- projectedPt{projMat.RawRowView(0), runInfo.hash}
 
 	return false
 }

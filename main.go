@@ -50,7 +50,7 @@ func main() {
 		if !ok {
 			log.Println("Couldn't get global basis. Divergence phase aborted.")
 		} else {
-			if appendDivFitFunc(seeds, glbProj.mergedBasis) {
+			if appendDivFitFunc(seeds, glbProj) {
 				fmt.Println("")
 				seeds = fuzzLoop(threads, seeds)
 				didDivPhase = true

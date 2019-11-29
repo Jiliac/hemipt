@@ -64,13 +64,13 @@ func (glbFit globalFitness) listen(fitChan chan runT, newSeedChan chan *seedT) {
 			fmt.Printf("Global fitness: %v.\n", glbFit.brCovFitFunc)
 
 		case runInfo := <-fitChan:
+			pass := glbFit.isFit(runInfo)
 			if !useEvoA {
-				pass := glbFit.isFit(runInfo)
 				if glbFit.seedN < glbFit.threadN && pass {
 					glbFit.seedN++
 					newSeedChan <- &seedT{runT: runInfo}
 				}
-			} else if glbFit.isFit(runInfo) {
+			} else if pass {
 				glbFit.seedN++
 				newSeedChan <- &seedT{runT: runInfo}
 			}
