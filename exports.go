@@ -325,31 +325,25 @@ func exportCoor(glbProj globalProjection, path string) {
 
 func (rf regionFinder) export(outDir string) {
 	close(rf.regionChan)
-	fmt.Println("EXPORTING REGIONS")
 	path := filepath.Join(outDir, "regions.csv")
 	ok, w := makeCSVFile(path)
 	if !ok {
 		return
 	}
 
-	records := [][]string{[]string{
-		"species_n", "sample_n", "dist_avg", "dist_var", "dist_kurt"}}
+	records := [][]string{[]string{"species_n", "sample_n", "dist_avg", "dist_var"}}
 	for _, r := range rf.regions {
-		var avg, v, kurt float64
+		var avg, v float64
 		if r.sampleN != 0 {
 			n := float64(r.sampleN)
 			avg = r.distSum / n
 			v = (r.sqDistSum / n) - avg*avg
-			m4 := (r.quadDistSum - 4*avg*r.thirdDistSum + 6*avg*avg + r.sqDistSum) / n
-			m4 -= 3 * avg * avg * avg * avg
-			kurt = m4 / (v * v)
 		}
 		records = append(records, []string{
 			fmt.Sprintf("%d", r.speciesN),
 			fmt.Sprintf("%d", r.sampleN),
 			fmt.Sprintf("%f", avg),
 			fmt.Sprintf("%f", v),
-			fmt.Sprintf("%f", kurt),
 		})
 	}
 

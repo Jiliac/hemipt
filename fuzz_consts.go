@@ -8,7 +8,7 @@ const (
 	// ****************
 	// ** Scheduling **
 	roundTime      = 5 * time.Second
-	fuzzRoundNBase = 3
+	fuzzRoundNBase = 5
 
 	// **********************
 	// ** Input Generation **

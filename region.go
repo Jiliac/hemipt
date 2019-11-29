@@ -10,7 +10,7 @@ type regionT struct {
 	sampleN    int
 
 	// Additional stats
-	distSum, sqDistSum, thirdDistSum, quadDistSum float64
+	distSum, sqDistSum float64
 }
 
 func makeRegion(proj []float64) regionT {
@@ -48,8 +48,6 @@ func findRegion(regions []regionT, pt []float64, hash uint64) {
 		root := math.Sqrt(minDist)
 		regions[closestRI].distSum += root
 		regions[closestRI].sqDistSum += minDist
-		regions[closestRI].thirdDistSum += root * minDist
-		regions[closestRI].quadDistSum += minDist * minDist
 	}
 }
 
